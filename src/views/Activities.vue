@@ -1,146 +1,226 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
-
-interface StravaActivity {
-  id: number
-  name: string
-  type: string
-  sport_type: string
-  start_date: string
-  distance: number
-  moving_time: number
-  total_elevation_gain: number
-  average_speed: number
-  max_speed: number
-}
+import { authService } from '../services/authService'
+import { stravaService } from '../services/stravaService'
+import { activityService, type Activity, type PaginationInfo } from '../services/activityService'
 
 const router = useRouter()
-const activities = ref<StravaActivity[]>([])
+const activities = ref<Activity[]>([])
+const pagination = ref<PaginationInfo>({
+  currentPage: 1,
+  totalPages: 1,
+  totalActivities: 0,
+  hasNextPage: false,
+  hasPrevPage: false,
+  limit: 12
+})
 const isLoading = ref(false)
 const error = ref('')
 const isConnectedToStrava = ref(false)
 const stravaAuthUrl = ref('')
-
-// Strava API configuration
-const STRAVA_CLIENT_ID = import.meta.env.VITE_STRAVA_CLIENT_ID || 'your-strava-client-id'
-const REDIRECT_URI = `${window.location.origin}/activities`
+const syncMessage = ref('')
+const searchQuery = ref('')
+const selectedSportType = ref('all')
+const sortBy = ref('-startDate')
 
 onMounted(() => {
   checkAuthentication()
   setupStravaAuth()
   checkForStravaCode()
+  // Initialize with first page load
+  if (authService.isAuthenticated()) {
+    fetchActivities(1)
+  }
 })
 
 const checkAuthentication = () => {
-  const isAuthenticated = localStorage.getItem('userAuthenticated') === 'true'
-  if (!isAuthenticated) {
+  if (!authService.isAuthenticated()) {
     router.push('/')
     return
   }
 }
 
 const setupStravaAuth = () => {
-  stravaAuthUrl.value = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&approval_prompt=force&scope=read,activity:read_all`
+  stravaAuthUrl.value = stravaService.generateAuthUrl()
 }
 
-const checkForStravaCode = () => {
+const checkForStravaCode = async () => {
   const urlParams = new URLSearchParams(window.location.search)
   const code = urlParams.get('code')
   
   if (code) {
-    exchangeCodeForToken(code)
+    await exchangeCodeForToken(code)
   } else {
-    // Check if we have a stored access token
-    const storedToken = localStorage.getItem('stravaAccessToken')
-    if (storedToken) {
+    // Check Strava connection status from server
+    await checkStravaStatus()
+  }
+}
+
+const checkStravaStatus = async () => {
+  try {
+    const status = await stravaService.getConnectionStatus()
+    if (status.success && status.isConnected && status.isTokenValid) {
       isConnectedToStrava.value = true
-      fetchActivities()
+      await fetchActivities()
     }
+  } catch (error: any) {
+    console.error('Error checking Strava status:', error.message)
   }
 }
 
 const exchangeCodeForToken = async (code: string) => {
   try {
     isLoading.value = true
+    error.value = ''
     
-    // Note: In a real app, this should be done on your backend for security
-    const response = await axios.post('https://www.strava.com/oauth/token', {
-      client_id: STRAVA_CLIENT_ID,
-      client_secret: import.meta.env.VITE_STRAVA_CLIENT_SECRET,
-      code: code,
-      grant_type: 'authorization_code'
-    })
+    const response = await stravaService.exchangeToken(code)
     
-    const { access_token } = response.data
-    localStorage.setItem('stravaAccessToken', access_token)
-    isConnectedToStrava.value = true
+    if (response.success) {
+      isConnectedToStrava.value = true
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, '/activities')
+      
+      // Fetch activities after successful connection
+      await fetchActivities()
+      
+      syncMessage.value = 'Successfully connected to Strava!'
+      setTimeout(() => {
+        syncMessage.value = ''
+      }, 3000)
+    }
     
-    // Clean up URL
-    window.history.replaceState({}, document.title, '/activities')
-    
-    await fetchActivities()
-  } catch (err) {
-    console.error('Error exchanging code for token:', err)
-    error.value = 'Failed to connect to Strava. Please try again.'
+  } catch (error: any) {
+    error.value = error.message || 'Failed to connect to Strava. Please try again.'
   } finally {
     isLoading.value = false
   }
 }
 
-const fetchActivities = async () => {
+const fetchActivities = async (page = 1) => {
   try {
     isLoading.value = true
     error.value = ''
     
-    const accessToken = localStorage.getItem('stravaAccessToken')
-    if (!accessToken) {
-      throw new Error('No Strava access token found')
-    }
-    
-    const response = await axios.get('https://www.strava.com/api/v3/athlete/activities', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      },
-      params: {
-        per_page: 30,
-        page: 1
-      }
+    // Get activities from server database with pagination
+    const response = await activityService.getActivities({
+      page,
+      limit: 12,
+      sort: sortBy.value,
+      sportType: selectedSportType.value !== 'all' ? selectedSportType.value : undefined,
+      search: searchQuery.value.trim() || undefined
     })
     
-    // Filter for kayaking/paddling activities
-    activities.value = response.data.filter((activity: StravaActivity) => 
-      activity.sport_type?.toLowerCase().includes('kayak') || 
-      activity.sport_type?.toLowerCase().includes('canoe') ||
-      activity.sport_type?.toLowerCase().includes('paddle') ||
-      activity.type?.toLowerCase().includes('kayak') ||
-      activity.name?.toLowerCase().includes('kayak')
-    )
+    if (response.success) {
+      activities.value = response.activities || []
+      pagination.value = response.pagination || {
+        currentPage: 1,
+        totalPages: 1,
+        totalActivities: 0,
+        hasNextPage: false,
+        hasPrevPage: false,
+        limit: 12
+      }
+    }
     
-  } catch (err: any) {
-    console.error('Error fetching activities:', err)
-    if (err.response?.status === 401) {
-      // Token expired, need to re-authenticate
-      localStorage.removeItem('stravaAccessToken')
-      isConnectedToStrava.value = false
-      error.value = 'Strava session expired. Please reconnect.'
-    } else {
-      error.value = 'Failed to fetch activities from Strava.'
+  } catch (error: any) {
+    error.value = error.message || 'Failed to fetch activities.'
+    // Reset pagination on error
+    pagination.value = {
+      currentPage: 1,
+      totalPages: 1,
+      totalActivities: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+      limit: 12
     }
   } finally {
     isLoading.value = false
   }
 }
+
+const goToPage = async (page: number) => {
+  if (pagination.value && page >= 1 && page <= pagination.value.totalPages) {
+    await fetchActivities(page)
+  }
+}
+
+const applyFilters = async () => {
+  await fetchActivities(1) // Reset to first page when applying filters
+}
+
+const clearFilters = async () => {
+  searchQuery.value = ''
+  selectedSportType.value = 'all'
+  sortBy.value = '-startDate'
+  await fetchActivities(1)
+}
+
+const sportTypes = computed(() => {
+  const types = ['all', 'Kayaking', 'Canoeing', 'SUP', 'Stand Up Paddleboarding', 'Paddle']
+  return types
+})
 
 const connectToStrava = () => {
   window.location.href = stravaAuthUrl.value
 }
 
-const disconnectStrava = () => {
-  localStorage.removeItem('stravaAccessToken')
-  isConnectedToStrava.value = false
-  activities.value = []
+const syncFromStrava = async (syncAll = false) => {
+  try {
+    isLoading.value = true
+    error.value = ''
+    syncMessage.value = ''
+    
+    const options = syncAll ? {
+      sync_all: true,
+      per_page: 200
+    } : {
+      page: 1,
+      per_page: 30
+    }
+    
+    const response = await stravaService.syncActivities(options)
+    
+    if (response.success) {
+      syncMessage.value = `${response.message} (${response.pagesProcessed} pages processed)`
+      
+      // Refresh activities list
+      await fetchActivities()
+      
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        syncMessage.value = ''
+      }, 5000)
+    }
+    
+  } catch (error: any) {
+    error.value = error.message || 'Failed to sync activities from Strava.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const syncAllFromStrava = async () => {
+  if (confirm('This will sync ALL your paddle activities from Strava. This may take a while. Continue?')) {
+    await syncFromStrava(true)
+  }
+}
+
+const disconnectStrava = async () => {
+  try {
+    await stravaService.disconnect()
+    isConnectedToStrava.value = false
+    activities.value = []
+    syncMessage.value = 'Disconnected from Strava successfully'
+    
+    setTimeout(() => {
+      syncMessage.value = ''
+    }, 3000)
+    
+  } catch (error: any) {
+    error.value = error.message || 'Failed to disconnect from Strava.'
+  }
 }
 
 const formatDistance = (meters: number): string => {
@@ -163,6 +243,7 @@ const formatDate = (dateString: string): string => {
 }
 
 const formatSpeed = (metersPerSecond: number): string => {
+  if (!metersPerSecond) return '0.0 km/h'
   const kmh = (metersPerSecond * 3.6)
   return `${kmh.toFixed(1)} km/h`
 }
@@ -172,8 +253,14 @@ const formatSpeed = (metersPerSecond: number): string => {
   <div class="activities-container">
     <header class="page-header">
       <div class="header-content">
-        <h1>🛶 Kayak Activities</h1>
-        <router-link to="/" class="back-link">← Back to Home</router-link>
+        <h1>🛶 Paddle Partner Activities</h1>
+        <div class="header-actions">
+          <div class="paddle-partner-access">
+            <span class="access-indicator">🛶</span>
+            <span class="access-text">Paddle Partner Access</span>
+          </div>
+          <router-link to="/" class="back-link">← Back to Home</router-link>
+        </div>
       </div>
     </header>
 
@@ -183,7 +270,7 @@ const formatSpeed = (metersPerSecond: number): string => {
         <div v-if="!isConnectedToStrava" class="connect-strava">
           <div class="strava-info">
             <h2>Connect to Strava</h2>
-            <p>Link your Strava account to view your kayaking activities and track your progress.</p>
+            <p>Link your Strava account to import and analyze your paddle sports activities with Paddle Partner.</p>
           </div>
           <button @click="connectToStrava" class="strava-connect-btn">
             <svg class="strava-icon" viewBox="0 0 24 24">
@@ -199,9 +286,19 @@ const formatSpeed = (metersPerSecond: number): string => {
             <span>Connected to Strava</span>
             <button @click="disconnectStrava" class="disconnect-btn">Disconnect</button>
           </div>
-          <button @click="fetchActivities" :disabled="isLoading" class="refresh-btn">
-            🔄 Refresh Activities
-          </button>
+          <div class="action-buttons">
+            <button @click="() => fetchActivities(1)" :disabled="isLoading" class="refresh-btn">
+              🔄 Refresh Activities
+            </button>
+            <button @click="syncFromStrava(false)" :disabled="isLoading" class="sync-btn">
+              <span v-if="isLoading">Syncing...</span>
+              <span v-else>🔄 Sync Recent</span>
+            </button>
+            <button @click="syncAllFromStrava" :disabled="isLoading" class="sync-all-btn">
+              <span v-if="isLoading">Syncing...</span>
+              <span v-else>📥 Sync All History</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -210,22 +307,69 @@ const formatSpeed = (metersPerSecond: number): string => {
         ⚠️ {{ error }}
       </div>
 
+      <!-- Success Message -->
+      <div v-if="syncMessage" class="success-message">
+        ✅ {{ syncMessage }}
+      </div>
+
+      <!-- Filters Section -->
+      <div v-if="isConnectedToStrava" class="filters-section">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label for="search">Search:</label>
+            <input 
+              id="search"
+              v-model="searchQuery" 
+              type="text" 
+              placeholder="Search activities..."
+              class="search-input"
+              @keyup.enter="applyFilters"
+            />
+          </div>
+          
+          <div class="filter-group">
+            <label for="sport-type">Sport Type:</label>
+            <select id="sport-type" v-model="selectedSportType" class="sport-select">
+              <option v-for="type in sportTypes" :key="type" :value="type">
+                {{ type === 'all' ? 'All Sports' : type }}
+              </option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label for="sort">Sort By:</label>
+            <select id="sort" v-model="sortBy" class="sort-select">
+              <option value="-startDate">Newest First</option>
+              <option value="startDate">Oldest First</option>
+              <option value="-distance">Longest Distance</option>
+              <option value="-movingTime">Longest Duration</option>
+              <option value="name">Name A-Z</option>
+            </select>
+          </div>
+          
+          <div class="filter-actions">
+            <button @click="applyFilters" class="apply-btn">Apply</button>
+            <button @click="clearFilters" class="clear-btn">Clear</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Loading State -->
       <div v-if="isLoading" class="loading">
         <div class="loading-spinner"></div>
-        <p>Loading kayak activities...</p>
+        <p>Loading paddle activities...</p>
       </div>
 
       <!-- Activities List -->
       <div v-else-if="activities.length > 0" class="activities-grid">
-        <div v-for="activity in activities" :key="activity.id" class="activity-card">
-          <div class="activity-header">
-            <h3>{{ activity.name }}</h3>
-            <span class="activity-type">{{ activity.sport_type || activity.type }}</span>
+        <div v-for="activity in activities" :key="activity._id" class="activity-card">
+                    <div class="activity-header">
+            <h3 class="activity-name">{{ activity.name }}</h3>
+            <span class="activity-type">{{ activity.sportType || activity.type }}</span>
           </div>
           
-          <div class="activity-date">
-            📅 {{ formatDate(activity.start_date) }}
+          <div class="activity-meta">
+            📅 {{ formatDate(activity.startDate) }}
           </div>
           
           <div class="activity-stats">
@@ -235,32 +379,71 @@ const formatSpeed = (metersPerSecond: number): string => {
             </div>
             
             <div class="stat">
-              <span class="stat-label">Duration</span>
-              <span class="stat-value">{{ formatDuration(activity.moving_time) }}</span>
+              <span class="stat-label">⏱️ Time</span>
+              <span class="stat-value">{{ formatDuration(activity.movingTime) }}</span>
             </div>
             
-            <div class="stat" v-if="activity.average_speed">
-              <span class="stat-label">Avg Speed</span>
-              <span class="stat-value">{{ formatSpeed(activity.average_speed) }}</span>
+            <div class="stat" v-if="activity.averageSpeed">
+              <span class="stat-label">🚤 Avg Speed</span>
+              <span class="stat-value">{{ formatSpeed(activity.averageSpeed) }}</span>
             </div>
             
-            <div class="stat" v-if="activity.total_elevation_gain">
-              <span class="stat-label">Elevation</span>
-              <span class="stat-value">{{ Math.round(activity.total_elevation_gain) }}m</span>
+            <div class="stat" v-if="activity.totalElevationGain">
+              <span class="stat-label">⛰️ Elevation</span>
+              <span class="stat-value">{{ Math.round(activity.totalElevationGain) }}m</span>
             </div>
           </div>
+        </div>
+        
+        <!-- Pagination Controls -->
+        <div v-if="pagination && pagination.totalPages > 1" class="pagination">
+          <button 
+            @click="goToPage(1)" 
+            :disabled="!pagination.hasPrevPage"
+            class="pagination-btn"
+          >
+            « First
+          </button>
+          
+          <button 
+            @click="goToPage(pagination.currentPage - 1)" 
+            :disabled="!pagination.hasPrevPage"
+            class="pagination-btn"
+          >
+            ‹ Prev
+          </button>
+          
+          <div class="pagination-info">
+            Page {{ pagination.currentPage }} of {{ pagination.totalPages }}
+          </div>
+          
+          <button 
+            @click="goToPage(pagination.currentPage + 1)" 
+            :disabled="!pagination.hasNextPage"
+            class="pagination-btn"
+          >
+            Next ›
+          </button>
+          
+          <button 
+            @click="goToPage(pagination.totalPages)" 
+            :disabled="!pagination.hasNextPage"
+            class="pagination-btn"
+          >
+            Last »
+          </button>
         </div>
       </div>
 
       <!-- No Activities Message -->
       <div v-else-if="isConnectedToStrava && !isLoading" class="no-activities">
         <div class="no-activities-content">
-          <h3>No Kayak Activities Found</h3>
-          <p>No kayaking activities were found in your Strava account. Make sure to:</p>
+          <h3>No Paddle Activities Found</h3>
+          <p>No paddle sports activities were found in your Strava account. Make sure to:</p>
           <ul>
-            <li>Log your kayaking sessions in Strava</li>
-            <li>Use activity types like "Kayaking", "Canoeing", or "Paddling"</li>
-            <li>Include "kayak" in your activity names</li>
+            <li>Log your paddle sessions in Strava</li>
+            <li>Use activity types like "Kayaking", "Canoeing", "Stand Up Paddleboarding", or "Paddling"</li>
+            <li>Include paddle sport keywords in your activity names</li>
           </ul>
         </div>
       </div>
@@ -323,6 +506,34 @@ const formatSpeed = (metersPerSecond: number): string => {
   margin: 0;
   font-size: 2.5rem;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.paddle-partner-access {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.access-indicator {
+  font-size: 1rem;
+}
+
+.access-text {
+  white-space: nowrap;
 }
 
 .back-link {
@@ -397,6 +608,28 @@ const formatSpeed = (metersPerSecond: number): string => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .action-buttons {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.5rem;
+  }
+  
+  .action-buttons button {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 .connection-status {
@@ -419,13 +652,15 @@ const formatSpeed = (metersPerSecond: number): string => {
   font-size: 12px;
 }
 
-.disconnect-btn, .refresh-btn {
+.disconnect-btn, .refresh-btn, .sync-btn, .sync-all-btn {
   padding: 0.5rem 1rem;
   border: 2px solid #e2e8f0;
   background: white;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .disconnect-btn:hover {
@@ -438,7 +673,26 @@ const formatSpeed = (metersPerSecond: number): string => {
   color: #3182ce;
 }
 
-.refresh-btn:disabled {
+.sync-btn:hover:not(:disabled) {
+  border-color: #38a169;
+  color: #2f855a;
+  background: #f0fff4;
+}
+
+.sync-all-btn {
+  background: #1a365d;
+  color: white;
+  border-color: #1a365d;
+}
+
+.sync-all-btn:hover:not(:disabled) {
+  background: #2a4365;
+  border-color: #2a4365;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(26, 54, 93, 0.3);
+}
+
+.refresh-btn:disabled, .sync-btn:disabled, .sync-all-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -450,6 +704,185 @@ const formatSpeed = (metersPerSecond: number): string => {
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 2rem;
+}
+
+.success-message {
+  background: #f0fff4;
+  color: #2f855a;
+  padding: 1rem;
+  border: 1px solid #9ae6b4;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+/* Filters Section */
+.filters-section {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 120px;
+}
+
+.filter-group label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4a5568;
+}
+
+.search-input, .sport-select, .sort-select {
+  padding: 0.5rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: border-color 0.3s ease;
+}
+
+.search-input:focus, .sport-select:focus, .sort-select:focus {
+  outline: none;
+  border-color: #4299e1;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.apply-btn, .clear-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.apply-btn {
+  background: #4299e1;
+  color: white;
+}
+
+.apply-btn:hover {
+  background: #3182ce;
+}
+
+.clear-btn {
+  background: #e2e8f0;
+  color: #4a5568;
+}
+
+.clear-btn:hover {
+  background: #cbd5e0;
+}
+
+/* Activities Section */
+.activities-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.activities-count {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+}
+
+.pagination-btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid #e2e8f0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: #4299e1;
+  color: #3182ce;
+  background: #f7fafc;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  color: #4a5568;
+  background: #f7fafc;
+  border-radius: 6px;
+  min-width: 120px;
+  text-align: center;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .filters-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-group {
+    min-width: unset;
+  }
+  
+  .filter-actions {
+    align-self: stretch;
+    margin-top: 0.5rem;
+  }
+  
+  .filter-actions button {
+    flex: 1;
+  }
+  
+  .activities-header {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .pagination {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  .pagination-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
 }
 
 .loading {
@@ -612,24 +1045,234 @@ const formatSpeed = (metersPerSecond: number): string => {
     flex-direction: column;
     gap: 1rem;
     text-align: center;
+    padding: 0 1rem;
   }
   
   .header-content h1 {
-    font-size: 2rem;
+    font-size: clamp(1.5rem, 5vw, 2rem);
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .paddle-partner-access {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+  }
+  
+  .activities-main {
+    padding: 1rem;
+  }
+  
+  .strava-section {
+    padding: 1rem;
+    margin-bottom: 1rem;
   }
   
   .activities-grid {
     grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .activity-card {
+    padding: 1rem;
   }
   
   .activity-stats {
     grid-template-columns: 1fr;
+    gap: 0.5rem;
   }
   
   .strava-connected {
     flex-direction: column;
     gap: 1rem;
-    align-items: flex-start;
+    align-items: stretch;
+  }
+  
+  .connection-status {
+    justify-content: center;
+  }
+  
+  .strava-connect-btn {
+    font-size: clamp(0.9rem, 3vw, 1.1rem);
+    padding: 1rem 1.5rem;
+  }
+}
+
+/* Mobile portrait */
+@media (max-width: 480px) {
+  .page-header {
+    padding: 1rem 0.5rem;
+  }
+  
+  .activities-main {
+    padding: 0.5rem;
+  }
+  
+  .strava-section {
+    padding: 0.75rem;
+    border-radius: 10px;
+  }
+  
+  .activity-card {
+    padding: 0.75rem;
+    border-radius: 8px;
+  }
+  
+  .activity-header h3 {
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+  
+  .activity-type {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+  }
+  
+  .stat {
+    padding: 0.5rem;
+  }
+  
+  .stat-value {
+    font-size: 1rem;
+  }
+  
+  .no-activities, .getting-started {
+    padding: 1rem;
+    margin: 0.5rem;
+  }
+  
+  .setup-steps {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Tablet styles */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .activities-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .strava-connected {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  
+  .setup-steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Activities Section */
+.activities-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.activities-count {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+}
+
+.pagination-btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid #e2e8f0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: #4299e1;
+  color: #3182ce;
+  background: #f7fafc;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  color: #4a5568;
+  background: #f7fafc;
+  border-radius: 6px;
+  min-width: 120px;
+  text-align: center;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .filters-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-group {
+    min-width: unset;
+  }
+  
+  .filter-actions {
+    align-self: stretch;
+    margin-top: 0.5rem;
+  }
+  
+  .filter-actions button {
+    flex: 1;
+  }
+  
+  .activities-header {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .pagination {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  .pagination-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+}
+@media (min-width: 1200px) {
+  .activities-main {
+    padding: 3rem 2rem;
+  }
+  
+  .activities-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+  }
+  
+  .strava-section {
+    padding: 2.5rem;
   }
 }
 </style>

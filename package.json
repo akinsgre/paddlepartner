@@ -1,5 +1,6 @@
 {
-  "name": "testagent",
+  "name": "paddle-partner",
+  "description": "A Vue.js app for tracking paddle sports activities with Google Auth and Strava integration",
   "private": true,
   "version": "0.0.0",
   "type": "module",

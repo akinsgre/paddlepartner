@@ -1,6 +1,6 @@
-# Vue.js Test Agent
+# Paddle Partner
 
-A modern Vue.js 3 application built with Vite and TypeScript for testing and development purposes.
+A modern Vue.js 3 application for tracking paddle sports activities, built with Vite and TypeScript. Connect with Google Auth and Strava to monitor your kayaking, canoeing, and paddling adventures.
 
 ## Features
 
@@ -67,7 +67,9 @@ To enable Strava activity tracking:
    ```
 5. Restart the development server
 
-**Security Note:** In production, the client secret should be handled by your backend server, not exposed in the frontend.
+**Security Note:** In production, the client secret should be handled by your backend server, not exposed in the frontend. This current implementation is for development/demo purposes only.
+
+**Important:** Never commit your `.env.local` file to version control as it contains sensitive API credentials.
 
 ## Getting Started
 

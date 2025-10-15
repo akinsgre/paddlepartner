@@ -1,6 +1,6 @@
-# Vue.js Project Instructions
+# Paddle Partner - Vue.js Project Instructions
 
-This is a Vue.js 3 application built with Vite, TypeScript, and modern development tools.
+This is Paddle Partner, a Vue.js 3 application built with Vite, TypeScript, and modern development tools for tracking paddle sports activities.
 
 ## Project Structure
 - Built with Vue 3 + TypeScript
