@@ -21,31 +21,28 @@ const count = ref(0)
 
     <div class="info-grid">
       <div class="info-card">
-        <h3>🌊 Kayaking Challenges</h3>
+        <h3>🌊 Paddle Challenges</h3>
         <ul>
-          <li>Class III-V rapids navigation</li>
-          <li>Technical boulder gardens</li>
-          <li>Steep water drops</li>
-          <li>Fast-flowing currents</li>
+          <li>Multi-sport tracking (kayak, canoe, SUP)</li>
+          <li>Technical rapid navigation</li>
+          <li>Distance and endurance goals</li>
+          <li>Weather and water conditions</li>
         </ul>
       </div>
       
       <div class="info-card">
-        <h3>🛶 Kayak Adventures</h3>
+        <h3>🛶 Paddle Features</h3>
         <ul>
-          <li>Solo kayaking expeditions</li>
-          <li>Guided rapid tours</li>
-          <li>Skills training courses</li>
-          <li>Action photography sessions</li>
+          <li>Strava activity sync</li>
+          <li>Progress tracking</li>
+          <li>Route planning tools</li>
+          <li>Community sharing</li>
         </ul>
       </div>
     </div>
 
     <p class="read-the-docs">
-      Built with 
-      <a href="https://vuejs.org/guide/quick-start.html#local" target="_blank">Vue 3</a> 
-      and 
-      <a href="https://vitejs.dev/" target="_blank">Vite</a>
+      Built with modern web technologies for the best paddle sports tracking experience.
     </p>
   </div>
 </template>
@@ -54,9 +51,9 @@ const count = ref(0)
 .content-card {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 15px;
-  padding: 2rem;
-  margin: 2rem auto;
-  max-width: 800px;
+  padding: clamp(1rem, 3vw, 2rem);
+  margin: 1rem auto 2rem;
+  max-width: min(800px, 95vw);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
 }
@@ -64,6 +61,8 @@ const count = ref(0)
 .content-card h1 {
   color: #2c5282;
   margin-bottom: 1.5rem;
+  font-size: clamp(1.3rem, 4vw, 2rem);
+  text-align: center;
 }
 
 .card {
@@ -75,17 +74,25 @@ const count = ref(0)
   text-align: center;
 }
 
+.card p {
+  font-size: clamp(0.8rem, 2vw, 0.9rem);
+  margin: 1rem 0 0.5rem 0;
+}
+
 .river-button {
   background: rgba(255, 255, 255, 0.2);
   border: 2px solid rgba(255, 255, 255, 0.3);
   color: white;
-  padding: 12px 24px;
+  padding: clamp(10px, 2vw, 12px) clamp(16px, 4vw, 24px);
   border-radius: 25px;
-  font-size: 1.1rem;
+  font-size: clamp(0.9rem, 2.5vw, 1.1rem);
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
 }
 
 .river-button:hover {
@@ -97,8 +104,8 @@ const count = ref(0)
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: clamp(1rem, 3vw, 1.5rem);
   margin: 2rem 0;
 }
 
@@ -115,22 +122,28 @@ const count = ref(0)
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  flex-wrap: wrap;
 }
 
 .info-card ul {
   color: #2d3748;
   margin: 0;
   padding-left: 1.2rem;
+  font-size: clamp(0.8rem, 2vw, 0.9rem);
 }
 
 .info-card li {
   margin-bottom: 0.5rem;
+  line-height: 1.4;
 }
 
 .read-the-docs {
   color: #666;
   text-align: center;
   margin-top: 2rem;
+  font-size: clamp(0.8rem, 2vw, 0.9rem);
+  line-height: 1.5;
 }
 
 .read-the-docs a {
@@ -143,14 +156,49 @@ const count = ref(0)
   text-decoration: underline;
 }
 
-@media (max-width: 768px) {
+/* Mobile-specific adjustments */
+@media (max-width: 480px) {
   .content-card {
-    margin: 1rem;
-    padding: 1.5rem;
+    margin: 0.5rem;
+    padding: 1rem;
+    border-radius: 10px;
+  }
+  
+  .card {
+    padding: 1rem;
+    margin: 1rem 0;
   }
   
   .info-grid {
-    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  
+  .info-card {
+    padding: 1rem;
+  }
+  
+  .info-card h3 {
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .info-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Large screen adjustments */
+@media (min-width: 1024px) {
+  .content-card {
+    padding: 2.5rem;
+  }
+  
+  .river-button {
+    max-width: 320px;
   }
 }
 </style>

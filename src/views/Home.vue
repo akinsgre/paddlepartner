@@ -6,20 +6,18 @@ import GoogleAuth from '../components/GoogleAuth.vue'
 <template>
   <div class="home-container">
     <header class="header">
-      <div class="logos">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" class="logo" alt="Vite logo" />
-        </a>
-        <a href="https://vuejs.org/" target="_blank">
-          <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-        </a>
+      <div class="header-content">
+        <div class="title-section">
+          <h1 class="main-title">Paddle Partner</h1>
+          <p class="tagline">Your Ultimate Paddle Sports Companion</p>
+        </div>
+        <div class="auth-container">
+          <GoogleAuth />
+        </div>
       </div>
-      <h1 class="main-title">Whitewater Kayak Adventures</h1>
     </header>
     
     <main class="main-content">
-      <GoogleAuth />
-      
       <div class="river-showcase">
         <img 
           src="/tour-photo.jpg" 
@@ -27,12 +25,12 @@ import GoogleAuth from '../components/GoogleAuth.vue'
           class="river-image"
         />
         <div class="river-overlay">
-          <h2>Adventure Awaits</h2>
-          <p>Captured moments from incredible outdoor expeditions</p>
+          <h2>Your Paddle Adventure Awaits</h2>
+          <p>Track, analyze, and share your paddle sports journey</p>
         </div>
       </div>
       
-      <HelloWorld msg="Vue + Vite Kayak Explorer" />
+      <HelloWorld msg="Track Your Paddle Adventures" />
     </main>
   </div>
 </template>
@@ -44,52 +42,66 @@ import GoogleAuth from '../components/GoogleAuth.vue'
 }
 
 .header {
-  padding: 2rem;
-  text-align: center;
+  padding: 1rem;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
 }
 
-.logos {
-  margin-bottom: 1rem;
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 2rem;
 }
 
-.logo {
-  height: 4em;
-  padding: 1em;
-  will-change: filter;
-  transition: filter 300ms;
+.title-section {
+  text-align: left;
+  flex: 1;
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+
+.auth-container {
+  flex-shrink: 0;
+  max-width: 300px;
 }
 
 .main-title {
   color: white;
-  font-size: 2.5rem;
-  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  margin: 0 0 0.5rem 0;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.tagline {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(1rem, 2.5vw, 1.3rem);
+  margin: 0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-weight: 300;
+  letter-spacing: 0.5px;
 }
 
 .main-content {
-  padding: 2rem;
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .river-showcase {
   position: relative;
-  margin: 2rem auto;
-  max-width: 1000px;
-  border-radius: 20px;
+  margin: 1rem auto 2rem;
+  max-width: 100%;
+  border-radius: 15px;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .river-image {
   width: 100%;
-  height: 400px;
+  height: clamp(250px, 50vw, 400px);
   object-fit: cover;
   display: block;
 }
@@ -101,37 +113,84 @@ import GoogleAuth from '../components/GoogleAuth.vue'
   right: 0;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
   color: white;
-  padding: 2rem;
+  padding: 1.5rem;
   text-align: center;
 }
 
 .river-overlay h2 {
   margin: 0 0 0.5rem 0;
-  font-size: 2rem;
+  font-size: clamp(1.2rem, 3vw, 2rem);
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .river-overlay p {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
   opacity: 0.9;
 }
 
-@media (max-width: 768px) {
-  .main-title {
-    font-size: 2rem;
+/* Tablet styles */
+@media (min-width: 768px) {
+  .header {
+    padding: 2.5rem 2rem;
   }
   
-  .river-image {
-    height: 300px;
+  .main-content {
+    padding: 2rem;
   }
   
-  .river-overlay h2 {
-    font-size: 1.5rem;
+  .river-showcase {
+    border-radius: 20px;
   }
   
-  .river-overlay p {
-    font-size: 1rem;
+  .river-overlay {
+    padding: 2rem;
+  }
+}
+
+/* Mobile styles */
+@media (max-width: 767px) {
+  .header {
+    padding: 1.5rem 1rem;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .title-section {
+    text-align: center;
+  }
+  
+  .auth-container {
+    max-width: 100%;
+    width: 100%;
+  }
+  
+  .main-content {
+    padding: 0.5rem;
+  }
+  
+  .river-showcase {
+    margin: 0.5rem auto 1rem;
+    border-radius: 10px;
+  }
+  
+  .river-overlay {
+    padding: 1rem;
+  }
+}
+
+/* Large desktop styles */
+@media (min-width: 1200px) {
+  .main-content {
+    padding: 3rem;
+  }
+  
+  .river-showcase {
+    max-width: 1000px;
   }
 }
 </style>
