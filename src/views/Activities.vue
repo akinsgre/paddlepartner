@@ -950,9 +950,16 @@ const formatSpeed = (metersPerSecond: number): string => {
 }
 
 .activity-date {
-  color: #666;
+  color: #2c5282;
   margin-bottom: 1rem;
   font-size: 0.9rem;
+}
+
+.activity-meta {
+  color: #2d3748;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
 }
 
 .activity-stats {

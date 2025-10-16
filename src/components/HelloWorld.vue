@@ -1,9 +1,92 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { authService } from '../services/authService'
+import { activityService } from '../services/activityService'
 
 defineProps<{ msg: string }>()
 
-const count = ref(0)
+// Mock data for non-logged-in users
+const mockYearlyData = [
+  { year: 2020, days: 45 },
+  { year: 2021, days: 62 },
+  { year: 2022, days: 78 },
+  { year: 2023, days: 89 },
+  { year: 2024, days: 94 },
+  { year: 2025, days: 67 }
+]
+
+const yearlyData = ref(mockYearlyData)
+const isLoggedIn = ref(false)
+const isLoading = ref(false)
+const error = ref('')
+
+const totalDays = computed(() => yearlyData.value.reduce((sum, d) => sum + d.days, 0))
+
+const fetchYearlyData = async () => {
+  if (!isLoggedIn.value) {
+    yearlyData.value = mockYearlyData
+    return
+  }
+
+  try {
+    isLoading.value = true
+    error.value = ''
+    
+    // Get all activities for the logged-in user
+    const response = await activityService.getActivities({
+      limit: 1000, // Get all activities
+      sort: '-startDate'
+    })
+    
+    if (response.success && response.activities) {
+      // Process activities to get yearly totals
+      const yearlyTotals = new Map<number, Set<string>>()
+      
+      response.activities.forEach(activity => {
+        const activityDate = new Date(activity.startDate)
+        const year = activityDate.getFullYear()
+        const dayKey = activityDate.toISOString().split('T')[0] // YYYY-MM-DD format
+        
+        if (!yearlyTotals.has(year)) {
+          yearlyTotals.set(year, new Set())
+        }
+        if (dayKey) {
+          yearlyTotals.get(year)!.add(dayKey)
+        }
+      })
+      
+      // Convert to array format, ensuring we have data for recent years
+      const currentYear = new Date().getFullYear()
+      const years = []
+      for (let year = Math.max(2020, currentYear - 5); year <= currentYear; year++) {
+        years.push({
+          year,
+          days: yearlyTotals.get(year)?.size || 0
+        })
+      }
+      
+      yearlyData.value = years
+    } else {
+      // Fall back to mock data if no activities
+      yearlyData.value = mockYearlyData
+    }
+  } catch (err: any) {
+    console.error('Failed to fetch yearly data:', err)
+    error.value = 'Failed to load paddling data'
+    // Fall back to mock data on error
+    yearlyData.value = mockYearlyData
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(async () => {
+  // Check if user is logged in
+  isLoggedIn.value = authService.isAuthenticated()
+  
+  // Fetch appropriate data
+  await fetchYearlyData()
+})
 </script>
 
 <template>
@@ -11,11 +94,38 @@ const count = ref(0)
     <h1>{{ msg }}</h1>
 
     <div class="card">
-      <button type="button" @click="count++" class="river-button">
-        � Rapids Conquered: {{ count }}
-      </button>
-      <p>
-        Edit <code>components/HelloWorld.vue</code> to test HMR
+      <div class="stats-header">
+        <h3>🏄‍♂️ Paddling Days Per Year</h3>
+        <p class="total-counter">Total Days: {{ totalDays }}</p>
+        <p v-if="!isLoggedIn" class="data-source">📊 Sample Data - Sign in to see your stats</p>
+        <p v-else-if="!isLoading && !error" class="data-source">📈 Your Personal Data</p>
+        <p v-if="error" class="error-message">⚠️ {{ error }}</p>
+      </div>
+      
+      <div v-if="isLoading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading your paddling data...</p>
+      </div>
+      
+      <div v-else class="yearly-chart">
+        <div v-for="data in yearlyData" :key="data.year" class="chart-bar-container">
+          <div class="stacked-bar">
+            <div class="remaining-portion"></div>
+            <div 
+              class="paddled-portion" 
+                          :style="{ height: `${data.days === 0 ? 5 : (data.days / Math.max(...yearlyData.map(d => d.days), 1)) * 100}%` }"
+              :title="`${data.year}: ${data.days} days paddled out of 365`"
+            >
+              <span class="bar-value">{{ data.days }}</span>
+            </div>
+          </div>
+          <span class="bar-label">{{ data.year }}</span>
+          <span class="percentage-label">{{ Math.round((data.days / 365) * 100) }}%</span>
+        </div>
+      </div>
+      
+      <p v-if="!isLoading">
+        {{ isLoggedIn ? 'Your paddling activity as a percentage of total days per year' : 'Each bar shows paddling days as a percentage of the year (365 days)' }}
       </p>
     </div>
 
@@ -74,32 +184,148 @@ const count = ref(0)
   text-align: center;
 }
 
-.card p {
-  font-size: clamp(0.8rem, 2vw, 0.9rem);
-  margin: 1rem 0 0.5rem 0;
+.stats-header {
+  margin-bottom: 1.5rem;
 }
 
-.river-button {
+.stats-header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: clamp(1.1rem, 3vw, 1.4rem);
+  font-weight: 600;
+}
+
+.total-counter {
   background: rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  padding: clamp(10px, 2vw, 12px) clamp(16px, 4vw, 24px);
-  border-radius: 25px;
-  font-size: clamp(0.9rem, 2.5vw, 1.1rem);
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-  width: 100%;
-  max-width: 280px;
-  margin: 0 auto;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  display: inline-block;
+  font-weight: 600;
+  font-size: clamp(0.9rem, 2.5vw, 1rem);
+  margin: 0 0 0.5rem 0;
 }
 
-.river-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+.data-source {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  display: inline-block;
+  font-size: clamp(0.75rem, 2vw, 0.85rem);
+  margin: 0.25rem 0 0 0;
+  opacity: 0.9;
+}
+
+.error-message {
+  background: rgba(255, 107, 107, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 15px;
+  display: inline-block;
+  font-size: clamp(0.8rem, 2vw, 0.9rem);
+  margin: 0.25rem 0 0 0;
+  border: 1px solid rgba(255, 107, 107, 0.5);
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.yearly-chart {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  height: 150px;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  gap: 0.5rem;
+}
+
+.chart-bar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  max-width: 60px;
+}
+
+.stacked-bar {
+  width: 100%;
+  height: 120px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.paddled-portion {
+  width: 100%;
+  background: linear-gradient(to top, rgba(72, 187, 120, 0.9), rgba(72, 187, 120, 1));
+  position: relative;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.25rem;
+  min-height: 2px;
+  order: 2;
+}
+
+.paddled-portion:hover {
+  background: linear-gradient(to top, rgba(72, 187, 120, 1), rgba(104, 211, 145, 1));
+  transform: scaleX(1.05);
+}
+
+.remaining-portion {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  order: 1;
+}
+
+.bar-value {
+  color: white;
+  font-weight: 600;
+  font-size: clamp(0.6rem, 1.8vw, 0.75rem);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.bar-label {
+  color: white;
+  font-size: clamp(0.7rem, 2vw, 0.8rem);
+  font-weight: 500;
+  margin-top: 0.5rem;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.percentage-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: clamp(0.6rem, 1.8vw, 0.7rem);
+  font-weight: 500;
+  margin-top: 0.25rem;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .info-grid {
@@ -169,6 +395,24 @@ const count = ref(0)
     margin: 1rem 0;
   }
   
+  .yearly-chart {
+    height: 120px;
+    padding: 0.75rem;
+    gap: 0.25rem;
+  }
+  
+  .stacked-bar {
+    height: 100px;
+  }
+  
+  .chart-bar-container {
+    max-width: 45px;
+  }
+  
+  .stats-header h3 {
+    font-size: 1rem;
+  }
+  
   .info-grid {
     gap: 1rem;
     margin: 1.5rem 0;
@@ -197,8 +441,17 @@ const count = ref(0)
     padding: 2.5rem;
   }
   
-  .river-button {
-    max-width: 320px;
+  .yearly-chart {
+    height: 180px;
+    padding: 1.5rem;
+  }
+  
+  .stacked-bar {
+    height: 150px;
+  }
+  
+  .chart-bar-container {
+    max-width: 80px;
   }
 }
 </style>
