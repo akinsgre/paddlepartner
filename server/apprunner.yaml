@@ -13,3 +13,25 @@ run:
   env:
     - name: PORT
       value: "3001"
+    - name: NODE_ENV
+      value: "production"
+    - name: MONGODB_URI
+      value: "mongodb+srv://username:password@cluster.mongodb.net/paddlepartner?retryWrites=true&w=majority"
+    - name: JWT_SECRET
+      value: "your-super-secure-jwt-secret-key-here"
+    - name: JWT_EXPIRE
+      value: "7d"
+    - name: GOOGLE_CLIENT_ID
+      value: "your-google-client-id.apps.googleusercontent.com"
+    - name: GOOGLE_CLIENT_SECRET
+      value: "your-google-client-secret"
+    - name: STRAVA_CLIENT_ID
+      value: "your-strava-client-id"
+    - name: STRAVA_CLIENT_SECRET
+      value: "your-strava-client-secret"
+    - name: CLIENT_URL
+      value: "https://your-frontend-url.amplifyapp.com"
+    - name: RATE_LIMIT_WINDOW_MS
+      value: "900000"
+    - name: RATE_LIMIT_MAX_REQUESTS
+      value: "100"
