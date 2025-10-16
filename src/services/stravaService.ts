@@ -1,26 +1,7 @@
 import api from './api'
 
-interface StravaTokens {
-  accessToken: string
-  refreshToken?: string
-  expiresAt?: string
-  athleteId?: string
-}
-
-interface StravaActivity {
-  id: number
-  name: string
-  type: string
-  sport_type: string
-  start_date: string
-  distance: number
-  moving_time: number
-  total_elevation_gain: number
-  average_speed: number
-  max_speed: number
-  start_latlng?: [number, number]
-  end_latlng?: [number, number]
-}
+// Removed unused interfaces to fix TypeScript build errors
+// These can be added back when needed for future features
 
 interface SyncResponse {
   success: boolean

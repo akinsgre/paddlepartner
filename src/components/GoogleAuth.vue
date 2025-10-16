@@ -14,6 +14,7 @@ const user = ref<GoogleUser | null>(null)
 const isLoading = ref(false)
 const errorMessage = ref('')
 const currentOrigin = ref('')
+const isMenuOpen = ref(false)
 
 // Google Client ID - Replace with your actual client ID from environment
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id.apps.googleusercontent.com'
@@ -182,6 +183,14 @@ const signOut = async () => {
     errorMessage.value = ''
   }
 }
+
+const toggleMenu = () => {
+  isMenuOpen.value = !isMenuOpen.value
+}
+
+const closeMenu = () => {
+  isMenuOpen.value = false
+}
 </script>
 
 <template>
@@ -221,16 +230,38 @@ const signOut = async () => {
       </div>
       
       <div class="authenticated-content">
-        <div class="access-badge">
-          <span class="badge">✨ Paddle Partner Member</span>
-          <p>You now have access to your personal paddle sports dashboard!</p>
-        </div>
-        
-        <div class="quick-actions">
-          <router-link to="/activities" class="action-btn primary">🛶 View Paddle Activities</router-link>
-          <button class="action-btn secondary">📸 View Photo Gallery</button>
-          <button class="action-btn secondary">🗺️ Plan New Adventure</button>
-          <button @click="signOut" class="action-btn logout">🚪 Sign Out</button>
+        <div class="horizontal-layout">
+          <div class="access-badge-compact">
+            <span class="badge">✨ Member</span>
+          </div>
+          
+          <div class="menu-container">
+            <button @click="toggleMenu" class="menu-trigger" :class="{ 'active': isMenuOpen }">
+              <span>⚡ Actions</span>
+              <svg class="menu-arrow" :class="{ 'rotated': isMenuOpen }" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M7,10L12,15L17,10H7Z"/>
+              </svg>
+            </button>
+            
+            <div v-if="isMenuOpen" class="dropdown-menu" @click="closeMenu">
+              <router-link to="/activities" class="menu-item primary">
+                <span class="menu-icon">🛶</span>
+                <span>View Activities</span>
+              </router-link>
+              <button class="menu-item secondary" @click="closeMenu">
+                <span class="menu-icon">📸</span>
+                <span>Photo Gallery</span>
+              </button>
+              <button class="menu-item secondary" @click="closeMenu">
+                <span class="menu-icon">🗺️</span>
+                <span>Plan Adventure</span>
+              </button>
+              <button @click="signOut" class="menu-item logout">
+                <span class="menu-icon">🚪</span>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -240,12 +271,14 @@ const signOut = async () => {
 <style scoped>
 .auth-container {
   background: rgba(255, 255, 255, 0.95);
-  border-radius: 15px;
-  padding: clamp(1rem, 3vw, 2rem);
-  margin: 1rem auto 2rem;
-  max-width: min(500px, 90vw);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  margin: 0;
+  max-width: 100%;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(10px);
+  position: relative;
+  z-index: 200;
 }
 
 .login-section {
@@ -318,9 +351,9 @@ const signOut = async () => {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .profile-image {
@@ -351,82 +384,158 @@ const signOut = async () => {
   word-break: break-word;
 }
 
-.access-badge {
+.horizontal-layout {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.access-badge-compact {
   background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
-  padding: 1rem;
-  border-radius: 10px;
-  margin-bottom: 1.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 20px;
+  flex-shrink: 0;
 }
 
 .badge {
   font-weight: bold;
-  font-size: clamp(1rem, 2.5vw, 1.1rem);
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
-.access-badge p {
-  margin: 0.5rem 0 0 0;
-  opacity: 0.9;
-  font-size: clamp(0.85rem, 2vw, 0.95rem);
+.menu-container {
+  position: relative;
+  flex: 1;
+  max-width: 150px;
+  z-index: 1;
 }
 
-.quick-actions {
+.menu-trigger {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.action-btn {
-  padding: 12px 20px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #4299e1, #3182ce);
+  color: white;
   border: none;
   border-radius: 8px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: clamp(0.85rem, 2vw, 0.95rem);
-  text-decoration: none;
-  display: inline-block;
-  text-align: center;
-  line-height: 1.2;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
-.action-btn.primary {
-  background: linear-gradient(135deg, #4299e1, #3182ce);
-  color: white;
-}
-
-.action-btn.secondary {
-  background: linear-gradient(135deg, #48bb78, #38a169);
-  color: white;
-}
-
-.action-btn.logout {
-  background: #f7fafc;
-  border: 2px solid #e2e8f0;
-  color: #4a5568;
-}
-
-.action-btn:hover {
+.menu-trigger:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+}
+
+.menu-trigger.active {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.menu-arrow {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.3s ease;
+}
+
+.menu-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #4299e1;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+  z-index: 201;
+  overflow: hidden;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: white;
+  color: #4a5568;
+  font-size: clamp(0.85rem, 2vw, 0.95rem);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-item:hover {
+  background: #f7fafc;
+  color: #2d3748;
+}
+
+.menu-item.primary:hover {
+  background: #ebf8ff;
+  color: #2b6cb0;
+}
+
+.menu-item.secondary:hover {
+  background: #f0fff4;
+  color: #276749;
+}
+
+.menu-item.logout:hover {
+  background: #fed7d7;
+  color: #c53030;
+}
+
+.menu-icon {
+  font-size: 1.1em;
+  flex-shrink: 0;
 }
 
 /* Mobile-specific styles */
-@media (max-width: 480px) {
+@media (max-width: 767px) {
   .auth-container {
-    margin: 0.5rem;
-    padding: 1.5rem 1rem;
-    border-radius: 10px;
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
   }
   
   .profile-header {
     flex-direction: column;
     text-align: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
   }
   
   .profile-info {
     text-align: center;
+  }
+  
+  .horizontal-layout {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+  
+  .menu-container {
+    max-width: 100%;
   }
   
   .google-signin-btn {
@@ -439,12 +548,17 @@ const signOut = async () => {
     height: 18px;
   }
   
-  .quick-actions {
-    gap: 0.5rem;
+  .menu-trigger {
+    padding: 8px 12px;
+    font-size: 0.8rem;
   }
   
-  .action-btn {
-    padding: 10px 16px;
+  .menu-item {
+    padding: 10px 14px;
+  }
+  
+  .menu-icon {
+    font-size: 1em;
   }
 }
 
@@ -453,29 +567,12 @@ const signOut = async () => {
   .auth-container {
     max-width: 600px;
   }
-  
-  .quick-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-  
-  .action-btn.logout {
-    grid-column: 1 / -1;
-  }
 }
 
 /* Large screen styles */
 @media (min-width: 1024px) {
-  .quick-actions {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-  
-  .action-btn.logout {
-    grid-column: 1 / -1;
-    max-width: 200px;
+  .menu-container {
+    max-width: 300px;
     margin: 0 auto;
   }
 }
