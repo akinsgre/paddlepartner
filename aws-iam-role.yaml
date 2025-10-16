@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'IAM Instance Role for App Runner to access Secrets Manager'
+
+Resources:
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: paddlepartner-apprunner-instance-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: 
+                  - arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK
+
+Outputs:
+  InstanceRoleArn:
+    Description: 'ARN of the App Runner Instance Role'
+    Value: !GetAtt AppRunnerInstanceRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-InstanceRoleArn'
