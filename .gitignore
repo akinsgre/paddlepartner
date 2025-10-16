@@ -27,6 +27,4 @@ dist-ssr
 *.sln
 *.sw?
 
-# Personal tour photos (keep private)
-public/tour-photo.jpg
-public/whitewater-*.jpg
+
