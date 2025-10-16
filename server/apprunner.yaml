@@ -25,14 +25,14 @@ run:
       value: "100"
   secrets:
     - name: MONGODB_URI
-      value_from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:MONGODB_URI::"
+      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:MONGODB_URI::"
     - name: JWT_SECRET
-      value_from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:JWT_SECRET::"
+      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:JWT_SECRET::"
     - name: GOOGLE_CLIENT_ID
-      value_from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:GOOGLE_CLIENT_ID::"
+      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:GOOGLE_CLIENT_ID::"
     - name: GOOGLE_CLIENT_SECRET
-      value_from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:GOOGLE_CLIENT_SECRET::"
+      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:GOOGLE_CLIENT_SECRET::"
     - name: STRAVA_CLIENT_ID
-      value_from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:STRAVA_CLIENT_ID::"
+      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:STRAVA_CLIENT_ID::"
     - name: STRAVA_CLIENT_SECRET
-      value_from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:STRAVA_CLIENT_SECRET::"
+      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:STRAVA_CLIENT_SECRET::"
