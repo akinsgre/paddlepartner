@@ -24,7 +24,7 @@ run:
     - name: RATE_LIMIT_MAX_REQUESTS
       value: "100"
     - name: MONGODB_URI
-      value: "mongodb+srv://angrygreg:Peq5HYFZSpLVLVyl@kayakstrava.xy0c6er.mongodb.net/pprtnrs?retryWrites=true&w=majority"
+      value: "mongodb+srv://angrygreg:Peq5HYFZSpLVLVyl@kayakstrava.xy0c6er.mongodb.net/pprtnrs?retryWrites=true&w=majority&connectTimeoutMS=30000&socketTimeoutMS=30000"
     - name: JWT_SECRET
       value: "p|9uDx%hSIRjlw661l>wO}0ne1?Y6xZdKocOWy"
     - name: GOOGLE_CLIENT_ID
