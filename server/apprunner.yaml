@@ -18,7 +18,7 @@ run:
     - name: JWT_EXPIRE
       value: "7d"
     - name: CLIENT_URL
-      value: "https://your-frontend-url.amplifyapp.com"
+      value: "https://main.d14gnvcz7saqzr.amplifyapp.com"
     - name: RATE_LIMIT_WINDOW_MS
       value: "900000"
     - name: RATE_LIMIT_MAX_REQUESTS
