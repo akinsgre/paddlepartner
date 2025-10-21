@@ -93,7 +93,7 @@ async function startServer() {
     // Connect to database
     await connectDatabase()
     
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Paddle Partner Server running on port ${PORT}`)
       console.log(`📊 Health check: http://localhost:${PORT}/health`)
       console.log(`🔗 Client URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}`)

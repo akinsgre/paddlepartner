@@ -23,16 +23,15 @@ run:
       value: "900000"
     - name: RATE_LIMIT_MAX_REQUESTS
       value: "100"
-  secrets:
     - name: MONGODB_URI
-      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:MONGODB_URI::"
+      value: "mongodb+srv://angrygreg:Peq5HYFZSpLVLVyl@kayakstrava.xy0c6er.mongodb.net/pprtnrs?retryWrites=true&w=majority"
     - name: JWT_SECRET
-      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:JWT_SECRET::"
+      value: "p|9uDx%hSIRjlw661l>wO}0ne1?Y6xZdKocOWy"
     - name: GOOGLE_CLIENT_ID
-      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:GOOGLE_CLIENT_ID::"
+      value: "79587302091-o7k04lglgsmbmscugvbnmbg7laeoqhqo.apps.googleusercontent.com"
     - name: GOOGLE_CLIENT_SECRET
-      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:GOOGLE_CLIENT_SECRET::"
+      value: "GOCSPX-1H1Z1H1Z1H1Z1H1Z1H1Z1H1Z1H1"
     - name: STRAVA_CLIENT_ID
-      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:STRAVA_CLIENT_ID::"
+      value: "58115"
     - name: STRAVA_CLIENT_SECRET
-      value-from: "arn:aws:secretsmanager:us-east-2:852487367335:secret:paddlingpartner-api-configuration-6dSatK:STRAVA_CLIENT_SECRET::"
+      value: "cdee0d256926d9a88f03c1a6fee8d4143536534d"
