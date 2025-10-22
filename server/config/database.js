@@ -1,8 +1,14 @@
 import mongoose from 'mongoose'
 
-// Function to get MongoDB URI (to ensure it gets the latest env value)
+
+// Function to build MongoDB URI from env variables
 const getMongodbUri = () => {
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/paddle-partner'
+  const password = process.env.MONGODB_PASSWORD
+  let uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/paddle-partner'
+  // Replace the password placeholder if present
+  if (uri.includes('${MONGODB_PASSWORD}')) {
+    uri = uri.replace('${MONGODB_PASSWORD}', password)
+  }
   return uri
 }
 
