@@ -42,7 +42,7 @@ cp server/.env.production.example server/.env.production
 4. **Environment Variables:**
    Add these in Amplify Console → App → Environment variables:
    ```
-   VITE_API_URL=https://your-backend-url.amazonaws.com/api
+   VITE_API_BASE_URL=https://your-backend-url.amazonaws.com/api
    VITE_GOOGLE_CLIENT_ID=your-google-client-id
    VITE_STRAVA_CLIENT_ID=your-strava-client-id
    VITE_STRAVA_REDIRECT_URI=https://your-frontend-url.amplifyapp.com/auth/strava/callback
@@ -96,7 +96,7 @@ cp server/.env.production.example server/.env.production
 ### Step 4: Update Configuration
 
 1. **Update Frontend Environment:**
-   - In Amplify Console, update `VITE_API_URL` with your App Runner URL
+   - In Amplify Console, update `VITE_API_BASE_URL` with your App Runner URL
    - Redeploy frontend
 
 2. **Update Backend CORS:**
