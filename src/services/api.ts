@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 // API base URL - change this to your production server URL when deploying
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/apixxx'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
 
 // Create axios instance with default config
 const api = axios.create({
