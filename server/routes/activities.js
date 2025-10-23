@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/errorHandler.js'
 import { protect } from '../middleware/auth.js'
 import Activity from '../models/Activity.js'
 import User from '../models/User.js'
+import WaterType from '../models/WaterType.js'
 
 const router = express.Router()
 
@@ -35,11 +36,28 @@ router.get('/', protect, asyncHandler(async (req, res) => {
   }
 
   if (search) {
-    query.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { notes: { $regex: search, $options: 'i' } },
-      { 'location.city': { $regex: search, $options: 'i' } }
-    ]
+    // Support multiple NOT terms: e.g., 'NOT Greenlick AND NOT ERG'
+    const notTerms = search.match(/NOT\s+[^A]+(?: AND NOT [^A]+)*/gi)
+    if (notTerms) {
+      // Split and clean up each NOT term
+      const negatives = search.split(/AND/i)
+        .map(s => s.trim())
+        .filter(s => /^NOT\s+/i.test(s))
+        .map(s => s.replace(/^NOT\s+/i, '').trim())
+        .filter(Boolean)
+      // Build $and array of $not regexes for each negative term
+      query.$and = negatives.flatMap(neg => [
+        { name: { $not: new RegExp(neg, 'i') } },
+        { notes: { $not: new RegExp(neg, 'i') } },
+        { 'location.city': { $not: new RegExp(neg, 'i') } }
+      ])
+    } else {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { notes: { $regex: search, $options: 'i' } },
+        { 'location.city': { $regex: search, $options: 'i' } }
+      ]
+    }
   }
 
   if (isPublic !== undefined) {
@@ -109,18 +127,22 @@ router.get('/:id', protect, asyncHandler(async (req, res) => {
 // @route   POST /api/activities
 // @access  Private
 router.post('/', protect, asyncHandler(async (req, res) => {
+  const { waterType } = req.body
+  if (waterType) {
+    const exists = await WaterType.exists({ name: waterType })
+    if (!exists) {
+      return res.status(400).json({ success: false, error: `Invalid waterType: ${waterType}` })
+    }
+  }
   const activityData = {
     ...req.body,
     userId: req.user._id,
     userGoogleId: req.user.googleId
   }
-
   const activity = await Activity.create(activityData)
-
   // Update user stats
   const activities = await Activity.find({ userGoogleId: req.user.googleId })
   await req.user.updateStats(activities)
-
   res.status(201).json({
     success: true,
     activity
@@ -135,21 +157,25 @@ router.put('/:id', protect, asyncHandler(async (req, res) => {
     _id: req.params.id,
     userGoogleId: req.user.googleId
   })
-
   if (!activity) {
     return res.status(404).json({
       success: false,
       error: 'Activity not found'
     })
   }
-
+  const { waterType } = req.body
+  if (waterType) {
+    const exists = await WaterType.exists({ name: waterType })
+    if (!exists) {
+      return res.status(400).json({ success: false, error: `Invalid waterType: ${waterType}` })
+    }
+  }
   // Update activity
   activity = await Activity.findByIdAndUpdate(
     req.params.id,
     req.body,
     { new: true, runValidators: true }
   )
-
   res.status(200).json({
     success: true,
     activity

@@ -12,7 +12,9 @@ import authRoutes from './routes/auth.js'
 import userRoutes from './routes/users.js'
 import activityRoutes from './routes/activities.js'
 import stravaRoutes from './routes/strava.js'
+import waterTypesRoutes from './routes/waterTypes.js'
 import { errorHandler } from './middleware/errorHandler.js'
+import WaterType from './models/WaterType.js'
 
 // Get current directory for ES modules
 const __filename = fileURLToPath(import.meta.url)
@@ -36,8 +38,15 @@ console.log('PORT:', process.env.PORT)
 console.log('STRAVA_CLIENT_ID:', process.env.STRAVA_CLIENT_ID ? 'loaded' : 'NOT LOADED')
 console.log('STRAVA_CLIENT_ID value:', process.env.STRAVA_CLIENT_ID)
 
+
 const app = express()
 const PORT = process.env.PORT || 3001
+
+// CORS middleware FIRST
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true
+}))
 
 // Rate limiting
 const limiter = rateLimit({
@@ -51,10 +60,6 @@ app.use(helmet())
 app.use(compression())
 app.use(morgan('combined'))
 app.use(limiter)
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
-}))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
@@ -74,6 +79,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/activities', activityRoutes)
 app.use('/api/strava', stravaRoutes)
+app.use('/api/water-types', waterTypesRoutes)
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -88,11 +94,29 @@ app.use('*', (req, res) => {
 app.use(errorHandler)
 
 // Start server
+
+async function seedWaterTypes() {
+  const allowed = [
+    { name: 'whitewater', description: 'Whitewater paddling' },
+    { name: 'moving water', description: 'Moving water (not whitewater)' },
+    { name: 'flat water', description: 'Flat water (lakes, slow rivers)' },
+    { name: 'erg', description: 'Ergometer (indoor trainer)' }
+  ]
+  const count = await WaterType.countDocuments()
+  if (count < allowed.length) {
+    for (const type of allowed) {
+      await WaterType.updateOne({ name: type.name }, type, { upsert: true })
+    }
+    console.log('✅ Seeded WaterType collection')
+  }
+}
+
 async function startServer() {
   try {
     // Connect to database
     await connectDatabase()
-    
+    // Seed water types
+    await seedWaterTypes()
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Paddle Partner Server running on port ${PORT}`)
       console.log(`📊 Health check: http://localhost:${PORT}/health`)

@@ -31,6 +31,12 @@ const activitySchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  waterType: {
+    type: String,
+    ref: 'WaterType',
+    required: false
+    // Not using enum here so values can be managed in the WaterType collection
+  },
   startDate: {
     type: Date,
     required: true,
