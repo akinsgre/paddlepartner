@@ -1,11 +1,105 @@
 <script setup lang="ts">
+// Modal state for Strava sync
+const showStravaSyncModal = ref(false)
+// Inline water type editing state (for activity card inline editing)
+const editingWaterTypeId = ref<string | null>(null)
+const inlineWaterType = ref('')
+const inlineLoadingId = ref<string | null>(null)
+
+function startInlineEdit(activity: Activity) {
+  editingWaterTypeId.value = activity._id
+  inlineWaterType.value = activity.waterType || ''
+}
+
+async function updateWaterType(activity: Activity) {
+  inlineLoadingId.value = activity._id
+  try {
+    await activityService.updateActivity(activity._id, { waterType: inlineWaterType.value })
+    activity.waterType = inlineWaterType.value
+    editingWaterTypeId.value = null
+  } catch (e: any) {
+    alert(e.message || 'Failed to update water type.')
+  } finally {
+    inlineLoadingId.value = null
+  }
+}
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '../services/authService'
 import { stravaService } from '../services/stravaService'
 import { activityService, type Activity, type PaginationInfo } from '../services/activityService'
+import { getWaterTypes, type WaterType } from '../services/waterTypeService'
+// Water type state
+const waterTypes = ref<WaterType[]>([])
+const selectedWaterType = ref('')
+
+onMounted(async () => {
+  checkAuthentication()
+  setupStravaAuth()
+  checkForStravaCode()
+  // Initialize with first page load
+  if (authService.isAuthenticated()) {
+    fetchActivities(1)
+  }
+  // Fetch allowed water types
+  try {
+    waterTypes.value = await getWaterTypes()
+  } catch (e) {
+    // fallback: use static list if API fails
+    waterTypes.value = [
+      { _id: 'whitewater', name: 'whitewater', description: 'Whitewater paddling' },
+      { _id: 'moving water', name: 'moving water', description: 'Moving water (not whitewater)' },
+      { _id: 'flat water', name: 'flat water', description: 'Flat water (lakes, slow rivers)' },
+      { _id: 'erg', name: 'erg', description: 'Ergometer (indoor trainer)' }
+    ]
+  }
+})
+// Example: Add/edit activity modal state (simplified for patch)
+const showActivityModal = ref(false)
+const editingActivity = ref<Activity | null>(null)
+const activityForm = ref<Partial<Activity>>({})
+const activityFormError = ref('')
+
+function openActivityModal(activity?: Activity) {
+  if (activity) {
+    editingActivity.value = activity
+    activityForm.value = { ...activity }
+    selectedWaterType.value = activity.waterType || ''
+  } else {
+    editingActivity.value = null
+    activityForm.value = {}
+    selectedWaterType.value = ''
+  }
+  showActivityModal.value = true
+}
+
+async function saveActivity() {
+  activityFormError.value = ''
+  activityForm.value.waterType = selectedWaterType.value
+  try {
+    if (editingActivity.value && editingActivity.value._id) {
+      await activityService.updateActivity(editingActivity.value._id, activityForm.value)
+    } else {
+      await activityService.createActivity(activityForm.value)
+    }
+    showActivityModal.value = false
+    await fetchActivities(1)
+  } catch (e: any) {
+    activityFormError.value = e.message || 'Failed to save activity.'
+  }
+}
 
 const router = useRouter()
+function goToBulkEdit() {
+  router.push({
+    name: 'BulkEdit',
+    query: {
+      search: searchQuery.value || undefined,
+      sportType: selectedSportType.value !== 'all' ? selectedSportType.value : undefined,
+      sort: sortBy.value || undefined
+    }
+  })
+}
 const activities = ref<Activity[]>([])
 const pagination = ref<PaginationInfo>({
   currentPage: 1,
@@ -250,6 +344,27 @@ const formatSpeed = (metersPerSecond: number): string => {
 </script>
 
 <template>
+  <!-- Activity Modal (simplified for patch) -->
+  <div v-if="showActivityModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2>{{ editingActivity ? 'Edit Activity' : 'Add Activity' }}</h2>
+      <form @submit.prevent="saveActivity">
+        <!-- ...other fields... -->
+        <div class="form-group">
+          <label for="waterType">Water Type</label>
+          <select id="waterType" v-model="selectedWaterType" required>
+            <option value="" disabled>Select water type</option>
+            <option v-for="type in waterTypes" :key="type.name" :value="type.name">
+              {{ type.description || type.name }}
+            </option>
+          </select>
+        </div>
+        <div v-if="activityFormError" class="error-message">{{ activityFormError }}</div>
+        <button type="submit">Save</button>
+        <button type="button" @click="showActivityModal = false">Cancel</button>
+      </form>
+    </div>
+  </div>
   <div class="activities-container">
     <header class="page-header">
       <div class="header-content">
@@ -265,31 +380,32 @@ const formatSpeed = (metersPerSecond: number): string => {
     </header>
 
     <main class="activities-main">
-      <!-- Strava Connection Section -->
-      <div class="strava-section">
-        <div v-if="!isConnectedToStrava" class="connect-strava">
-          <div class="strava-info">
-            <h2>Connect to Strava</h2>
-            <p>Link your Strava account to import and analyze your paddle sports activities with Paddle Partner.</p>
-          </div>
-          <button @click="connectToStrava" class="strava-connect-btn">
-            <svg class="strava-icon" viewBox="0 0 24 24">
-              <path fill="#FC4C02" d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.172"/>
-            </svg>
-            Connect with Strava
-          </button>
-        </div>
+      <!-- Sync from Strava Button (styled like filters-section) -->
+      <div class="filters-section" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+  <button @click="showStravaSyncModal = true" class="sync-strava-btn" style="border: 2px solid #FC4C02;">
+          <svg class="strava-icon" viewBox="0 0 24 24" style="width: 1.5em; height: 1.5em; vertical-align: middle; margin-right: 0.5em;">
+            <path fill="#FC4C02" d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.172"/>
+          </svg>
+          Sync from Strava
+        </button>
+        <span style="color: #222; font-size: 0.95em; font-weight: 500;">Import new activities from your Strava account</span>
+      </div>
 
-        <div v-else class="strava-connected">
-          <div class="connection-status">
-            <span class="status-indicator">✓</span>
-            <span>Connected to Strava</span>
-            <button @click="disconnectStrava" class="disconnect-btn">Disconnect</button>
-          </div>
-          <div class="action-buttons">
-            <button @click="() => fetchActivities(1)" :disabled="isLoading" class="refresh-btn">
-              🔄 Refresh Activities
+      <!-- Strava Sync Modal -->
+      <div v-if="showStravaSyncModal" class="modal-overlay">
+        <div class="modal-content">
+          <h2>Sync Activities from Strava</h2>
+          <div v-if="!isConnectedToStrava">
+            <p>To import activities, connect your Strava account.</p>
+            <button @click="connectToStrava" class="strava-connect-btn">
+              <svg class="strava-icon" viewBox="0 0 24 24" style="width: 1.2em; height: 1.2em; vertical-align: middle; margin-right: 0.5em;">
+                <path fill="#FC4C02" d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.172"/>
+              </svg>
+              Connect with Strava
             </button>
+          </div>
+          <div v-else>
+            <p>Strava is connected. Choose an option:</p>
             <button @click="syncFromStrava(false)" :disabled="isLoading" class="sync-btn">
               <span v-if="isLoading">Syncing...</span>
               <span v-else>🔄 Sync Recent</span>
@@ -298,7 +414,9 @@ const formatSpeed = (metersPerSecond: number): string => {
               <span v-if="isLoading">Syncing...</span>
               <span v-else>📥 Sync All History</span>
             </button>
+            <button @click="disconnectStrava" class="disconnect-btn">Disconnect</button>
           </div>
+          <button @click="showStravaSyncModal = false" class="close-btn" style="margin-top: 1em;">Close</button>
         </div>
       </div>
 
@@ -312,8 +430,9 @@ const formatSpeed = (metersPerSecond: number): string => {
         ✅ {{ syncMessage }}
       </div>
 
-      <!-- Filters Section -->
-      <div v-if="isConnectedToStrava" class="filters-section">
+
+      <!-- Filters Section (always visible) -->
+      <div class="filters-section">
         <div class="filters-row">
           <div class="filter-group">
             <label for="search">Search:</label>
@@ -350,9 +469,13 @@ const formatSpeed = (metersPerSecond: number): string => {
           <div class="filter-actions">
             <button @click="applyFilters" class="apply-btn">Apply</button>
             <button @click="clearFilters" class="clear-btn">Clear</button>
+            <button type="button" @click="goToBulkEdit" class="bulk-edit-btn">Bulk Edit</button>
           </div>
         </div>
       </div>
+
+
+
 
       <!-- Loading State -->
       <div v-if="isLoading" class="loading">
@@ -360,78 +483,106 @@ const formatSpeed = (metersPerSecond: number): string => {
         <p>Loading paddle activities...</p>
       </div>
 
+
       <!-- Activities List -->
-      <div v-else-if="activities.length > 0" class="activities-grid">
-        <div v-for="activity in activities" :key="activity._id" class="activity-card">
-                    <div class="activity-header">
-            <h3 class="activity-name">{{ activity.name }}</h3>
-            <span class="activity-type">{{ activity.sportType || activity.type }}</span>
-          </div>
-          
-          <div class="activity-meta">
-            📅 {{ formatDate(activity.startDate) }}
-          </div>
-          
-          <div class="activity-stats">
-            <div class="stat">
-              <span class="stat-label">Distance</span>
-              <span class="stat-value">{{ formatDistance(activity.distance) }}</span>
+      <div v-if="activities.length > 0">
+        <div class="activities-grid">
+          <div v-for="activity in activities" :key="activity._id" class="activity-card">
+            <div class="activity-header">
+              <h3 class="activity-name">{{ activity.name }}</h3>
+              <span class="activity-type">{{ activity.sportType || activity.type }}</span>
             </div>
-            
-            <div class="stat">
-              <span class="stat-label">⏱️ Time</span>
-              <span class="stat-value">{{ formatDuration(activity.movingTime) }}</span>
+
+            <div class="activity-meta">
+              📅 {{ formatDate(activity.startDate) }}
             </div>
-            
-            <div class="stat" v-if="activity.averageSpeed">
-              <span class="stat-label">🚤 Avg Speed</span>
-              <span class="stat-value">{{ formatSpeed(activity.averageSpeed) }}</span>
+
+            <div class="activity-stats">
+              <div class="stat">
+                <span class="stat-label">Distance</span>
+                <span class="stat-value">{{ formatDistance(activity.distance) }}</span>
+              </div>
+
+              <div class="stat">
+                <span class="stat-label">⏱️ Time</span>
+                <span class="stat-value">{{ formatDuration(activity.movingTime) }}</span>
+              </div>
+
+              <div class="stat" v-if="activity.averageSpeed">
+                <span class="stat-label">🚤 Avg Speed</span>
+                <span class="stat-value">{{ formatSpeed(activity.averageSpeed) }}</span>
+              </div>
+
+              <div class="stat" v-if="activity.totalElevationGain">
+                <span class="stat-label">⛰️ Elevation</span>
+                <span class="stat-value">{{ Math.round(activity.totalElevationGain) }}m</span>
+              </div>
             </div>
-            
-            <div class="stat" v-if="activity.totalElevationGain">
-              <span class="stat-label">⛰️ Elevation</span>
-              <span class="stat-value">{{ Math.round(activity.totalElevationGain) }}m</span>
+            <!-- Editable fields at bottom of card -->
+            <div class="activity-edit-fields">
+              <span class="activity-water-type">
+                💧
+                <template v-if="editingWaterTypeId === activity._id">
+                  <select v-model="inlineWaterType" @change="updateWaterType(activity)" :disabled="inlineLoadingId === activity._id">
+                    <option value="" disabled>Select water type</option>
+                    <option v-for="type in waterTypes" :key="type._id" :value="type.name">
+                      {{ type.name.charAt(0).toUpperCase() + type.name.slice(1) }}
+                    </option>
+                  </select>
+                  <span v-if="inlineLoadingId === activity._id" class="inline-loading">⏳</span>
+                  <button @click="editingWaterTypeId = null" :disabled="inlineLoadingId === activity._id">✕</button>
+                </template>
+                <template v-else>
+                  <span v-if="activity.waterType">
+                    {{ activity.waterType.charAt(0).toUpperCase() + activity.waterType.slice(1) }}
+                    <button class="edit-btn" @click="startInlineEdit(activity)">✎</button>
+                  </span>
+                  <span v-else>
+                    <button class="add-btn" @click="startInlineEdit(activity)">Add water type</button>
+                  </span>
+                </template>
+              </span>
             </div>
           </div>
-        </div>
-        
-        <!-- Pagination Controls -->
-        <div v-if="pagination && pagination.totalPages > 1" class="pagination">
-          <button 
-            @click="goToPage(1)" 
-            :disabled="!pagination.hasPrevPage"
-            class="pagination-btn"
-          >
-            « First
-          </button>
-          
-          <button 
-            @click="goToPage(pagination.currentPage - 1)" 
-            :disabled="!pagination.hasPrevPage"
-            class="pagination-btn"
-          >
-            ‹ Prev
-          </button>
-          
-          <div class="pagination-info">
-            Page {{ pagination.currentPage }} of {{ pagination.totalPages }}
+
+          <!-- Pagination Controls -->
+          <div v-if="pagination && pagination.totalPages > 1" class="pagination">
+            <button 
+              @click="goToPage(1)" 
+              :disabled="!pagination.hasPrevPage"
+              class="pagination-btn"
+            >
+              « First
+            </button>
+
+            <button 
+              @click="goToPage(pagination.currentPage - 1)" 
+              :disabled="!pagination.hasPrevPage"
+              class="pagination-btn"
+            >
+              ‹ Prev
+            </button>
+
+            <div class="pagination-info">
+              Page {{ pagination.currentPage }} of {{ pagination.totalPages }}
+            </div>
+
+            <button 
+              @click="goToPage(pagination.currentPage + 1)" 
+              :disabled="!pagination.hasNextPage"
+              class="pagination-btn"
+            >
+              Next ›
+            </button>
+
+            <button 
+              @click="goToPage(pagination.totalPages)" 
+              :disabled="!pagination.hasNextPage"
+              class="pagination-btn"
+            >
+              Last »
+            </button>
           </div>
-          
-          <button 
-            @click="goToPage(pagination.currentPage + 1)" 
-            :disabled="!pagination.hasNextPage"
-            class="pagination-btn"
-          >
-            Next ›
-          </button>
-          
-          <button 
-            @click="goToPage(pagination.totalPages)" 
-            :disabled="!pagination.hasNextPage"
-            class="pagination-btn"
-          >
-            Last »
-          </button>
         </div>
       </div>
 
@@ -1268,6 +1419,23 @@ const formatSpeed = (metersPerSecond: number): string => {
     font-size: 0.8rem;
   }
 }
+
+/* Bulk Edit Button Styles */
+.bulk-edit-btn {
+  background: #764ba2;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-left: 0.5rem;
+  transition: background 0.2s;
+}
+.bulk-edit-btn:hover {
+  background: #667eea;
+}
+
 @media (min-width: 1200px) {
   .activities-main {
     padding: 3rem 2rem;
