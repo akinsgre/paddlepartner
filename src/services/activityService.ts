@@ -141,7 +141,7 @@ export const activityService = {
   /**
    * Update activity
    */
-  async updateActivity(id: string, updates: Partial<Activity>): Promise<{ success: boolean; activity: Activity }> {
+  async updateActivity(id: string | undefined, updates: Partial<Activity>): Promise<{ success: boolean; activity: Activity }> {
     try {
       const response = await api.put(`/activities/${id}`, updates)
       return response.data

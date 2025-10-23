@@ -3,19 +3,21 @@
 const showStravaSyncModal = ref(false)
 // Inline water type editing state (for activity card inline editing)
 const editingWaterTypeId = ref<string | null>(null)
-const inlineWaterType = ref('')
+import type { Ref } from 'vue'
+const inlineWaterType: Ref<string> = ref('')
 const inlineLoadingId = ref<string | null>(null)
 
 function startInlineEdit(activity: Activity) {
-  editingWaterTypeId.value = activity._id
-  inlineWaterType.value = activity.waterType || ''
+  editingWaterTypeId.value = activity._id ?? null
+  inlineWaterType.value = activity.waterType ? activity.waterType : ''
 }
 
 async function updateWaterType(activity: Activity) {
-  inlineLoadingId.value = activity._id
+  inlineLoadingId.value = activity._id ?? null
   try {
-    await activityService.updateActivity(activity._id, { waterType: inlineWaterType.value })
-    activity.waterType = inlineWaterType.value
+    // Always pass a string (never undefined)
+  await activityService.updateActivity(activity._id, { waterType: inlineWaterType.value as string })
+  activity.waterType = inlineWaterType.value as string
     editingWaterTypeId.value = null
   } catch (e: any) {
     alert(e.message || 'Failed to update water type.')
@@ -31,7 +33,7 @@ import { activityService, type Activity, type PaginationInfo } from '../services
 import { getWaterTypes, type WaterType } from '../services/waterTypeService'
 // Water type state
 const waterTypes = ref<WaterType[]>([])
-const selectedWaterType = ref('')
+const selectedWaterType = ref('') // always a string, never null
 
 onMounted(async () => {
   checkAuthentication()
@@ -60,22 +62,11 @@ const editingActivity = ref<Activity | null>(null)
 const activityForm = ref<Partial<Activity>>({})
 const activityFormError = ref('')
 
-function openActivityModal(activity?: Activity) {
-  if (activity) {
-    editingActivity.value = activity
-    activityForm.value = { ...activity }
-    selectedWaterType.value = activity.waterType || ''
-  } else {
-    editingActivity.value = null
-    activityForm.value = {}
-    selectedWaterType.value = ''
-  }
-  showActivityModal.value = true
-}
+// openActivityModal is unused, remove to fix TS6133
 
 async function saveActivity() {
   activityFormError.value = ''
-  activityForm.value.waterType = selectedWaterType.value
+  activityForm.value.waterType = selectedWaterType.value || undefined
   try {
     if (editingActivity.value && editingActivity.value._id) {
       await activityService.updateActivity(editingActivity.value._id, activityForm.value)

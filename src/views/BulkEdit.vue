@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
+import type { Ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { activityService, type Activity } from '../services/activityService'
 import { getWaterTypes, type WaterType } from '../services/waterTypeService'
@@ -11,13 +12,18 @@ const activities = ref<Activity[]>([])
 const isLoading = ref(false)
 const error = ref('')
 const waterTypes = ref<WaterType[]>([])
-const selectedWaterType = ref('')
+const selectedWaterType: Ref<string> = ref('') // always a string, never null
 const bulkLoading = ref(false)
 
-// Filters from query params
-const searchQuery = ref(route.query.search || '')
-const selectedSportType = ref(route.query.sportType || 'all')
-const sortBy = ref(route.query.sort || '-startDate')
+// Filters from query params (normalize to string)
+function getQueryString(val: unknown, fallback: string): string {
+  if (typeof val === 'string') return val
+  if (Array.isArray(val)) return val[0] || fallback
+  return fallback
+}
+const searchQuery = ref(getQueryString(route.query.search, ''))
+const selectedSportType = ref(getQueryString(route.query.sportType, 'all'))
+const sortBy = ref(getQueryString(route.query.sort, '-startDate'))
 
 onMounted(async () => {
   await fetchWaterTypes()
@@ -59,13 +65,13 @@ async function fetchActivities() {
 }
 
 async function applyBulkWaterType() {
-  if (!selectedWaterType.value) return
+  if (selectedWaterType.value === '') return
   bulkLoading.value = true
   try {
     await Promise.all(activities.value.map(async (activity) => {
       if (activity.waterType !== selectedWaterType.value) {
-        await activityService.updateActivity(activity._id, { waterType: selectedWaterType.value })
-        activity.waterType = selectedWaterType.value
+  await activityService.updateActivity(activity._id, { waterType: selectedWaterType.value as string })
+  activity.waterType = selectedWaterType.value as string
       }
     }))
   } catch (e: any) {
