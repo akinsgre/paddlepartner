@@ -9,6 +9,7 @@ export interface Activity {
   startDate: string
   distance: number
   movingTime: number
+  waterType?: string | null
   totalElevationGain?: number
   averageSpeed?: number
   maxSpeed?: number
