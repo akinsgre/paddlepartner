@@ -87,6 +87,7 @@ function goToBulkEdit() {
     query: {
       search: searchQuery.value || undefined,
       sportType: selectedSportType.value !== 'all' ? selectedSportType.value : undefined,
+      waterType: selectedWaterTypeFilter.value !== 'all' ? selectedWaterTypeFilter.value : undefined,
       sort: sortBy.value || undefined
     }
   })
@@ -108,6 +109,7 @@ const syncMessage = ref('')
 const searchQuery = ref('')
 const selectedSportType = ref('all')
 const sortBy = ref('-startDate')
+const selectedWaterTypeFilter = ref('all')
 
 onMounted(() => {
   checkAuthentication()
@@ -194,7 +196,8 @@ const fetchActivities = async (page = 1) => {
       limit: 12,
       sort: sortBy.value,
       sportType: selectedSportType.value !== 'all' ? selectedSportType.value : undefined,
-      search: searchQuery.value.trim() || undefined
+      search: searchQuery.value.trim() || undefined,
+      waterType: selectedWaterTypeFilter.value !== 'all' ? selectedWaterTypeFilter.value : undefined
     })
     
     if (response.success) {
@@ -239,6 +242,7 @@ const clearFilters = async () => {
   searchQuery.value = ''
   selectedSportType.value = 'all'
   sortBy.value = '-startDate'
+  selectedWaterTypeFilter.value = 'all'
   await fetchActivities(1)
 }
 
@@ -442,6 +446,17 @@ const formatSpeed = (metersPerSecond: number): string => {
             <select id="sport-type" v-model="selectedSportType" class="sport-select">
               <option v-for="type in sportTypes" :key="type" :value="type">
                 {{ type === 'all' ? 'All Sports' : type }}
+              </option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <label for="water-type-filter">Water Type:</label>
+            <select id="water-type-filter" v-model="selectedWaterTypeFilter" class="water-type-select">
+              <option value="all">All Types</option>
+              <option value="undefined">Not Set</option>
+              <option v-for="type in waterTypes" :key="type._id" :value="type.name">
+                {{ type.name.charAt(0).toUpperCase() + type.name.slice(1) }}
               </option>
             </select>
           </div>
@@ -886,7 +901,7 @@ const formatSpeed = (metersPerSecond: number): string => {
   color: #4a5568;
 }
 
-.search-input, .sport-select, .sort-select {
+.search-input, .sport-select, .sort-select, .water-type-select {
   padding: 0.5rem;
   border: 2px solid #e2e8f0;
   border-radius: 6px;
@@ -894,7 +909,7 @@ const formatSpeed = (metersPerSecond: number): string => {
   transition: border-color 0.3s ease;
 }
 
-.search-input:focus, .sport-select:focus, .sort-select:focus {
+.search-input:focus, .sport-select:focus, .sort-select:focus, .water-type-select:focus {
   outline: none;
   border-color: #4299e1;
 }
@@ -1425,6 +1440,89 @@ const formatSpeed = (metersPerSecond: number): string => {
 }
 .bulk-edit-btn:hover {
   background: #667eea;
+}
+
+/* Activity Water Type Inline Editing Styles */
+.activity-edit-fields {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.activity-water-type {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.activity-water-type select {
+  padding: 0.5rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: border-color 0.3s ease;
+  background: white;
+  cursor: pointer;
+}
+
+.activity-water-type select:focus {
+  outline: none;
+  border-color: #4299e1;
+}
+
+.activity-water-type select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.activity-water-type button {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #e2e8f0;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.activity-water-type button:hover:not(:disabled) {
+  background: #f7fafc;
+  border-color: #cbd5e0;
+}
+
+.activity-water-type button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.activity-water-type .edit-btn {
+  background: #4299e1;
+  color: white;
+  border-color: #4299e1;
+  margin-left: 0.5rem;
+}
+
+.activity-water-type .edit-btn:hover {
+  background: #3182ce;
+  border-color: #3182ce;
+}
+
+.activity-water-type .add-btn {
+  background: #48bb78;
+  color: white;
+  border-color: #48bb78;
+  padding: 0.5rem 1rem;
+}
+
+.activity-water-type .add-btn:hover {
+  background: #38a169;
+  border-color: #38a169;
+}
+
+.activity-water-type .inline-loading {
+  color: #4299e1;
+  font-size: 1rem;
 }
 
 @media (min-width: 1200px) {

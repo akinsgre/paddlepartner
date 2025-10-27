@@ -87,6 +87,7 @@ export interface GetActivitiesParams {
   limit?: number
   sort?: string
   sportType?: string
+  waterType?: string
   search?: string
 }
 
@@ -102,6 +103,7 @@ export const activityService = {
       if (params.limit) queryParams.append('limit', params.limit.toString())
       if (params.sort) queryParams.append('sort', params.sort)
       if (params.sportType) queryParams.append('sportType', params.sportType)
+      if (params.waterType) queryParams.append('waterType', params.waterType)
       if (params.search) queryParams.append('search', params.search)
       
       const response = await api.get(`/activities?${queryParams.toString()}`)

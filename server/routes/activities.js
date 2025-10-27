@@ -16,6 +16,7 @@ router.get('/', protect, asyncHandler(async (req, res) => {
     limit = 30,
     sort = '-startDate',
     sportType,
+    waterType,
     startDate,
     endDate,
     search,
@@ -27,6 +28,16 @@ router.get('/', protect, asyncHandler(async (req, res) => {
 
   if (sportType) {
     query.sportType = sportType
+  }
+
+  if (waterType) {
+    if (waterType === 'undefined') {
+      // Filter for activities where waterType is not set (null or undefined)
+      query.waterType = { $in: [null, undefined] }
+    } else {
+      // Filter for specific waterType value
+      query.waterType = waterType
+    }
   }
 
   if (startDate || endDate) {
