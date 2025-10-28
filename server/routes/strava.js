@@ -11,7 +11,7 @@ const router = express.Router()
 // @route   POST /api/strava/exchange-token
 // @access  Private
 router.post('/exchange-token', protect, asyncHandler(async (req, res) => {
-  const { code } = req.body
+  const { code, redirectUri } = req.body
   
   // Get environment variables directly in handler
   const STRAVA_CLIENT_ID = process.env.STRAVA_CLIENT_ID
@@ -35,12 +35,22 @@ router.post('/exchange-token', protect, asyncHandler(async (req, res) => {
     })
   }
 
+  // Validate redirect URI if provided (security measure)
+  if (redirectUri && !isValidRedirectUri(redirectUri)) {
+    console.error('❌ Invalid redirect URI provided:', redirectUri)
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid redirect URI'
+    })
+  }
+
   try {
     console.log('🔄 Attempting Strava token exchange with:')
     console.log('  Client ID:', STRAVA_CLIENT_ID)
     console.log('  Client Secret length:', STRAVA_CLIENT_SECRET?.length || 'undefined')
     console.log('  Code length:', code.length)
     console.log('  Code preview:', code.substring(0, 10) + '...')
+    console.log('  Redirect URI:', redirectUri || 'not provided')
     
     const tokenRequest = {
       client_id: STRAVA_CLIENT_ID,
@@ -82,6 +92,81 @@ router.post('/exchange-token', protect, asyncHandler(async (req, res) => {
     })
   }
 }))
+
+/**
+ * Validate redirect URI for security
+ * @param {string} redirectUri - The redirect URI to validate
+ * @returns {boolean} - Whether the URI is valid
+ */
+function isValidRedirectUri(redirectUri) {
+  try {
+    const url = new URL(redirectUri)
+    
+    // Environment-aware allowed hosts
+    const allowedOrigins = getEnvironmentAllowedOrigins()
+    const isAllowedOrigin = allowedOrigins.includes(`${url.protocol}//${url.host}`)
+    
+    // Check path (must be /activities or similar allowed paths)
+    const allowedPaths = ['/activities', '/auth/callback', '/']
+    const isValidPath = allowedPaths.includes(url.pathname)
+    
+    console.log('🔍 Redirect URI validation:', {
+      uri: redirectUri,
+      origin: `${url.protocol}//${url.host}`,
+      pathname: url.pathname,
+      environment: getServerEnvironment(),
+      isAllowedOrigin,
+      isValidPath,
+      isValid: isAllowedOrigin && isValidPath
+    })
+    
+    return isAllowedOrigin && isValidPath
+    
+  } catch (error) {
+    console.error('❌ Error validating redirect URI:', error.message)
+    return false
+  }
+}
+
+/**
+ * Get server environment
+ */
+function getServerEnvironment() {
+  const nodeEnv = process.env.NODE_ENV || 'development'
+  
+  if (nodeEnv === 'production') return 'production'
+  if (nodeEnv === 'staging' || nodeEnv === 'test') return 'staging'
+  return 'development'
+}
+
+/**
+ * Get allowed origins for current server environment
+ */
+function getEnvironmentAllowedOrigins() {
+  const environment = getServerEnvironment()
+  
+  const allowedOrigins = {
+    development: [
+      'http://localhost:5173',
+      'http://localhost:5174', 
+      'http://localhost:3000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
+      'http://127.0.0.1:3000'
+    ],
+    staging: [
+      'https://staging.paddlepartner.com',
+      'https://dev.paddlepartner.com',
+      'https://test.paddlepartner.com'
+    ],
+    production: [
+      'https://paddlepartner.com',
+      'https://www.paddlepartner.com'
+    ]
+  }
+  
+  return allowedOrigins[environment] || allowedOrigins.development
+}
 
 // @desc    Refresh Strava access token
 // @route   POST /api/strava/refresh-token

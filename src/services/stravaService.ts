@@ -1,4 +1,5 @@
 import api from './api'
+import { getStravaRedirectUri, getCurrentEnvironmentConfig, environmentLog } from '../config/environment'
 
 // Removed unused interfaces to fix TypeScript build errors
 // These can be added back when needed for future features
@@ -18,10 +19,21 @@ export const stravaService = {
    */
   async exchangeToken(code: string): Promise<{ success: boolean; message: string; athlete?: any }> {
     try {
-      const response = await api.post('/strava/exchange-token', { code })
+      // Include the redirect URI that was used for the OAuth flow
+      const redirectUri = getStravaRedirectUri()
+      
+      environmentLog('debug', 'Exchanging Strava token', { 
+        codeLength: code.length, 
+        redirectUri 
+      })
+      
+      const response = await api.post('/strava/exchange-token', { 
+        code,
+        redirectUri 
+      })
       return response.data
     } catch (error: any) {
-      console.error('Strava token exchange error:', error)
+      environmentLog('error', 'Strava token exchange failed', error.response?.data || error.message)
       throw new Error(error.response?.data?.error || 'Failed to connect to Strava')
     }
   },
@@ -89,12 +101,23 @@ export const stravaService = {
   },
 
   /**
-   * Generate Strava authorization URL
+   * Generate Strava authorization URL with dynamic redirect URI
    */
   generateAuthUrl(): string {
     const STRAVA_CLIENT_ID = import.meta.env.VITE_STRAVA_CLIENT_ID
-    const REDIRECT_URI = `${window.location.origin}/activities`
     
-    return `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&approval_prompt=force&scope=read,activity:read_all`
+    // Use centralized environment configuration
+    const redirectUri = getStravaRedirectUri()
+    const config = getCurrentEnvironmentConfig()
+    
+    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=force&scope=read,activity:read_all`
+    
+    environmentLog('info', 'Generated Strava auth URL', {
+      clientId: STRAVA_CLIENT_ID,
+      redirectUri: redirectUri,
+      environment: config.name
+    })
+    
+    return authUrl
   }
 }
