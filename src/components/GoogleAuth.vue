@@ -3,13 +3,6 @@ import { ref, onMounted, watch } from 'vue'
 import { authService } from '../services/authService'
 import { useAuth } from '../composables/useAuth'
 
-interface GoogleUser {
-  name: string
-  email: string
-  picture: string
-  googleId: string
-}
-
 const { isAuthenticated, user, login, logout: authLogout } = useAuth()
 const isLoading = ref(false)
 const errorMessage = ref('')
@@ -185,14 +178,14 @@ const signOut = async () => {
     if (window.google && window.google.accounts) {
       window.google.accounts.id.disableAutoSelect()
       
-      // Additional Google sign-out if available
-      if (window.google.accounts.oauth2) {
-        try {
-          await window.google.accounts.oauth2.revoke(localStorage.getItem('authToken') || '')
-        } catch (error) {
-          // Ignore revoke errors as the token might already be invalid
-          console.warn('Google token revoke failed:', error)
+      // Additional Google sign-out if available - oauth2 might not be available in all contexts
+      try {
+        if ((window.google.accounts as any).oauth2) {
+          await (window.google.accounts as any).oauth2.revoke(localStorage.getItem('authToken') || '')
         }
+      } catch (error) {
+        // Ignore revoke errors as the token might already be invalid or oauth2 not available
+        console.warn('Google token revoke failed:', error)
       }
     }
     
@@ -228,11 +221,11 @@ const signOut = async () => {
   }
 }
 
-const handleImageError = (event: Event) => {
+const handleImageError = () => {
   console.error('Profile image failed to load')
 }
 
-const handleImageLoad = (event: Event) => {
+const handleImageLoad = () => {
   // Image loaded successfully
 }
 

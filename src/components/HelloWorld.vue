@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { authService } from '../services/authService'
 import { activityService } from '../services/activityService'
 import { useAuth } from '../composables/useAuth'
 

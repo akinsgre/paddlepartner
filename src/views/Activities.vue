@@ -111,7 +111,7 @@ async function saveActivity() {
           success: response.success,
           activityId: response.activity?._id,
           activityName: response.activity?.name,
-          debugInfo: response.debugInfo,
+          debugInfo: (response as any).debugInfo,
           timestamp: new Date().toISOString()
         })
       }
@@ -146,8 +146,8 @@ async function saveActivity() {
     if (import.meta.env.DEV) {
       console.error('💥 Save Activity Error Details:', {
         error: e.message,
-        errorOrigin: e.errorOrigin,
-        debugInfo: e.debugInfo,
+        errorOrigin: (e as any).errorOrigin,
+        debugInfo: (e as any).debugInfo,
         formData: activityForm.value,
         response: e.response?.data,
         status: e.response?.status,
