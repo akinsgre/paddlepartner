@@ -6,6 +6,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import Home from '../views/Home.vue'
 import Activities from '../views/Activities.vue'
 const BulkEdit = () => import('../views/BulkEdit.vue')
+const Analysis = () => import('../views/Analysis.vue')
 
 const routes: RouteRecordRaw[] = [
   {
@@ -17,6 +18,14 @@ const routes: RouteRecordRaw[] = [
     path: '/activities',
     name: 'Activities',
     component: Activities,
+    meta: {
+      requiresAuth: true
+    }
+  },
+  {
+    path: '/analysis',
+    name: 'Analysis',
+    component: Analysis,
     meta: {
       requiresAuth: true
     }

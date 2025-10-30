@@ -40,6 +40,12 @@ export const authService = {
       return response.data
     } catch (error: any) {
       console.error('Google authentication error:', error)
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin === 'Google OAuth') {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Authentication failed')
     }
   },
@@ -53,6 +59,12 @@ export const authService = {
       return response.data
     } catch (error: any) {
       console.error('Get current user error:', error)
+      
+      // In development, provide more detailed error information  
+      if (import.meta.env.DEV && (error.errorOrigin === 'Google OAuth' || error.errorOrigin === 'MongoDB Atlas')) {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to get user information')
     }
   },
@@ -62,14 +74,40 @@ export const authService = {
    */
   async logout() {
     try {
+      if (import.meta.env.DEV) {
+        console.log('🚪 AuthService - Initiating logout...')
+      }
+      
+      // Call server logout endpoint
       await api.post('/auth/logout')
+      
+      if (import.meta.env.DEV) {
+        console.log('✅ AuthService - Server logout successful')
+      }
     } catch (error) {
-      console.error('Logout error:', error)
+      console.error('🔴 AuthService - Logout server call failed:', error)
+      // Continue with local cleanup even if server call fails
     } finally {
       // Clear local storage regardless of API response
-      localStorage.removeItem('authToken')
-      localStorage.removeItem('userAuthenticated')
-      localStorage.removeItem('userInfo')
+      const itemsToRemove = ['authToken', 'userAuthenticated', 'userInfo']
+      
+      itemsToRemove.forEach(item => {
+        if (localStorage.getItem(item)) {
+          localStorage.removeItem(item)
+          if (import.meta.env.DEV) {
+            console.log(`🗑️ Removed ${item} from localStorage`)
+          }
+        }
+      })
+      
+      if (import.meta.env.DEV) {
+        console.log('✅ AuthService - Local storage cleared')
+        console.log('🔍 Remaining auth state:', {
+          hasToken: !!localStorage.getItem('authToken'),
+          isAuthenticated: localStorage.getItem('userAuthenticated'),
+          hasUserInfo: !!localStorage.getItem('userInfo')
+        })
+      }
     }
   },
 

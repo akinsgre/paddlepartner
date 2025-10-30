@@ -34,6 +34,12 @@ export const stravaService = {
       return response.data
     } catch (error: any) {
       environmentLog('error', 'Strava token exchange failed', error.response?.data || error.message)
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin === 'Strava API') {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to connect to Strava')
     }
   },
@@ -47,6 +53,12 @@ export const stravaService = {
       return response.data
     } catch (error: any) {
       console.error('Strava token refresh error:', error)
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin === 'Strava API') {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to refresh Strava token')
     }
   },
@@ -64,6 +76,12 @@ export const stravaService = {
       return response.data
     } catch (error: any) {
       console.error('Strava sync error:', error)
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin === 'Strava API') {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to sync activities from Strava')
     }
   },
@@ -83,6 +101,12 @@ export const stravaService = {
       return response.data
     } catch (error: any) {
       console.error('Strava status error:', error)
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin === 'Strava API') {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to get Strava status')
     }
   },
@@ -96,6 +120,12 @@ export const stravaService = {
       return response.data
     } catch (error: any) {
       console.error('Strava disconnect error:', error)
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin === 'Strava API') {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to disconnect Strava')
     }
   },

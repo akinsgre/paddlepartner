@@ -43,6 +43,11 @@ describe('🧪 Frontend Integration Tests - Router', () => {
     const routerModule = await import('../src/router/index')
     expect(routerModule.default).toBeDefined()
   })
+
+  it('should import Analysis view without errors', async () => {
+    const analysisModule = await import('../src/views/Analysis.vue')
+    expect(analysisModule.default).toBeDefined()
+  })
 })
 
 describe('🧪 Frontend Integration Tests - Auth State', () => {

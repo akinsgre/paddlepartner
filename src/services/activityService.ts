@@ -89,6 +89,8 @@ export interface GetActivitiesParams {
   sportType?: string
   waterType?: string
   search?: string
+  startDate?: string
+  endDate?: string
 }
 
 export const activityService = {
@@ -97,6 +99,13 @@ export const activityService = {
    */
   async getActivities(params: GetActivitiesParams = {}): Promise<GetActivitiesResponse> {
     try {
+      if (import.meta.env.DEV) {
+        console.log('🔍 Activity Service - Fetch Request:', {
+          params: params,
+          timestamp: new Date().toISOString()
+        })
+      }
+      
       const queryParams = new URLSearchParams()
       
       if (params.page) queryParams.append('page', params.page.toString())
@@ -105,11 +114,56 @@ export const activityService = {
       if (params.sportType) queryParams.append('sportType', params.sportType)
       if (params.waterType) queryParams.append('waterType', params.waterType)
       if (params.search) queryParams.append('search', params.search)
+      if (params.startDate) queryParams.append('startDate', params.startDate)
+      if (params.endDate) queryParams.append('endDate', params.endDate)
       
       const response = await api.get(`/activities?${queryParams.toString()}`)
+      
+      if (import.meta.env.DEV) {
+        console.log('✅ Activity Service - Fetch Response:', {
+          success: response.data.success,
+          activitiesCount: response.data.activities?.length || 0,
+          pagination: response.data.pagination,
+          timestamp: new Date().toISOString()
+        })
+      }
+      
       return response.data
     } catch (error: any) {
-      console.error('Get activities error:', error)
+      console.error('💥 Activity Service - Fetch Error:', {
+        params: params,
+        error: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        timestamp: new Date().toISOString()
+      })
+      
+      // Enhanced error handling for specific status codes
+      if (error.response?.status === 429) {
+        const retryAfter = error.response.headers['retry-after'] || 'unknown'
+        const errorMsg = `Too many requests. Please wait ${retryAfter} seconds before trying again.`
+        
+        if (import.meta.env.DEV) {
+          console.warn('⚠️ Rate limit exceeded:', {
+            retryAfter: retryAfter,
+            headers: error.response.headers,
+            timestamp: new Date().toISOString()
+          })
+        }
+        
+        const enhancedError = new Error(errorMsg) as any
+        enhancedError.errorOrigin = 'Rate Limiting'
+        enhancedError.statusCode = 429
+        enhancedError.retryAfter = retryAfter
+        throw enhancedError
+      }
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin) {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to fetch activities')
     }
   },
@@ -123,6 +177,12 @@ export const activityService = {
       return response.data
     } catch (error: any) {
       console.error('Get activity error:', error)
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin === 'MongoDB Atlas') {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to fetch activity')
     }
   },
@@ -136,6 +196,12 @@ export const activityService = {
       return response.data
     } catch (error: any) {
       console.error('Create activity error:', error)
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.errorOrigin === 'MongoDB Atlas') {
+        throw error // Let the enhanced error message pass through
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to create activity')
     }
   },
@@ -145,10 +211,70 @@ export const activityService = {
    */
   async updateActivity(id: string | undefined, updates: Partial<Activity>): Promise<{ success: boolean; activity: Activity }> {
     try {
+      if (import.meta.env.DEV) {
+        console.log('🔄 Activity Service - Update Request:', {
+          activityId: id,
+          updates: updates,
+          timestamp: new Date().toISOString()
+        })
+      }
+      
       const response = await api.put(`/activities/${id}`, updates)
+      
+      if (import.meta.env.DEV) {
+        console.log('✅ Activity Service - Update Response:', {
+          success: response.data.success,
+          activityId: response.data.activity?._id,
+          debugInfo: response.data.debugInfo,
+          timestamp: new Date().toISOString()
+        })
+      }
+      
       return response.data
     } catch (error: any) {
-      console.error('Update activity error:', error)
+      console.error('💥 Activity Service - Update Error:', {
+        activityId: id,
+        updates: updates,
+        error: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        timestamp: new Date().toISOString()
+      })
+      
+      // Enhanced error handling for specific status codes and development mode
+      if (error.response?.status === 429) {
+        const retryAfter = error.response.headers['retry-after'] || 'unknown'
+        const errorMsg = error.response?.data?.error || `Too many requests. Please wait ${retryAfter} seconds before trying again.`
+        
+        if (import.meta.env.DEV) {
+          console.warn('⚠️ Rate limit exceeded on update:', {
+            retryAfter: retryAfter,
+            errorOrigin: error.response?.data?.errorOrigin,
+            debugInfo: error.response?.data?.debugInfo,
+            timestamp: new Date().toISOString()
+          })
+        }
+        
+        const enhancedError = new Error(errorMsg) as any
+        enhancedError.errorOrigin = error.response?.data?.errorOrigin || 'Rate Limiting'
+        enhancedError.statusCode = 429
+        enhancedError.retryAfter = retryAfter
+        enhancedError.debugInfo = error.response?.data?.debugInfo
+        enhancedError.response = error.response
+        throw enhancedError
+      }
+      
+      // In development, provide more detailed error information
+      if (import.meta.env.DEV && error.response?.data?.errorOrigin) {
+        const enhancedError = new Error(error.response?.data?.error || error.message) as any
+        enhancedError.errorOrigin = error.response.data.errorOrigin
+        enhancedError.debugInfo = error.response.data.debugInfo
+        enhancedError.originalError = error.response.data.originalError
+        enhancedError.response = error.response
+        throw enhancedError
+      }
+      
       throw new Error(error.response?.data?.error || 'Failed to update activity')
     }
   },

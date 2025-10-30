@@ -7,6 +7,28 @@ import User from '../models/User.js'
 
 const router = express.Router()
 
+// Helper function to validate and sanitize GPS coordinates from Strava
+function sanitizeCoordinates(coords) {
+  if (!coords || !Array.isArray(coords) || coords.length !== 2) {
+    return undefined
+  }
+  
+  const [lat, lng] = coords
+  
+  // Check if both values are valid numbers
+  if (typeof lat !== 'number' || typeof lng !== 'number' || 
+      isNaN(lat) || isNaN(lng)) {
+    return undefined
+  }
+  
+  // Check if coordinates are within valid ranges
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return undefined
+  }
+  
+  return [lat, lng]
+}
+
 // @desc    Exchange Strava authorization code for tokens
 // @route   POST /api/strava/exchange-token
 // @access  Private
@@ -321,8 +343,8 @@ router.post('/sync-activities', protect, asyncHandler(async (req, res) => {
             averageSpeed: stravaActivity.average_speed || 0,
             maxSpeed: stravaActivity.max_speed || 0,
             location: {
-              startLatLng: stravaActivity.start_latlng,
-              endLatLng: stravaActivity.end_latlng
+              startLatLng: sanitizeCoordinates(stravaActivity.start_latlng),
+              endLatLng: sanitizeCoordinates(stravaActivity.end_latlng)
             },
             stravaData: {
               polyline: stravaActivity.map?.polyline,

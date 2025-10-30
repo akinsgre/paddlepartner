@@ -16,21 +16,45 @@ async function updateWaterType(activity: Activity) {
   inlineLoadingId.value = activity._id ?? null
   try {
     // Always pass a string (never undefined)
-  await activityService.updateActivity(activity._id, { waterType: inlineWaterType.value as string })
-  activity.waterType = inlineWaterType.value as string
+    const response = await activityService.updateActivity(activity._id, { waterType: inlineWaterType.value as string })
+    
+    // Log success in development
+    if (import.meta.env.DEV) {
+      console.log('✅ Water type updated successfully:', {
+        activityId: activity._id,
+        oldWaterType: activity.waterType,
+        newWaterType: inlineWaterType.value,
+        response: response
+      })
+    }
+    
+    activity.waterType = inlineWaterType.value as string
     editingWaterTypeId.value = null
   } catch (e: any) {
-    alert(e.message || 'Failed to update water type.')
+    logError('Update Water Type', e)
+    
+    // Enhanced error display for development
+    let errorMessage = e.message || 'Failed to update water type.'
+    
+    if (import.meta.env.DEV && e.response?.data?.debugInfo) {
+      errorMessage += `\n\nDevelopment Debug Info:\n${JSON.stringify(e.response.data.debugInfo, null, 2)}`
+    }
+    
+    error.value = formatErrorForDisplay(e)
+    
+    // Also show alert for immediate user feedback
+    alert(errorMessage)
   } finally {
     inlineLoadingId.value = null
   }
 }
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { authService } from '../services/authService'
 import { stravaService } from '../services/stravaService'
 import { activityService, type Activity, type PaginationInfo } from '../services/activityService'
 import { getWaterTypes, type WaterType } from '../services/waterTypeService'
+import { formatErrorForDisplay, shouldShowDetails, logError } from '../utils/errorHandler'
 // Water type state
 const waterTypes = ref<WaterType[]>([])
 const selectedWaterType = ref('') // always a string, never null
@@ -67,20 +91,89 @@ const activityFormError = ref('')
 async function saveActivity() {
   activityFormError.value = ''
   activityForm.value.waterType = selectedWaterType.value || undefined
+  
+  if (import.meta.env.DEV) {
+    console.log('💾 Saving activity:', {
+      isEditing: !!editingActivity.value?._id,
+      activityId: editingActivity.value?._id,
+      formData: activityForm.value,
+      selectedWaterType: selectedWaterType.value,
+      timestamp: new Date().toISOString()
+    })
+  }
+  
   try {
+    let response
     if (editingActivity.value && editingActivity.value._id) {
-      await activityService.updateActivity(editingActivity.value._id, activityForm.value)
+      response = await activityService.updateActivity(editingActivity.value._id, activityForm.value)
+      if (import.meta.env.DEV) {
+        console.log('✅ Activity updated successfully:', {
+          success: response.success,
+          activityId: response.activity?._id,
+          activityName: response.activity?.name,
+          debugInfo: response.debugInfo,
+          timestamp: new Date().toISOString()
+        })
+      }
+      
+      // Verify success before proceeding
+      if (!response.success) {
+        throw new Error('Server returned unsuccessful response despite 200 status')
+      }
     } else {
-      await activityService.createActivity(activityForm.value)
+      response = await activityService.createActivity(activityForm.value)
+      if (import.meta.env.DEV) {
+        console.log('✅ Activity created successfully:', {
+          success: response.success,
+          activityId: response.activity?._id,
+          timestamp: new Date().toISOString()
+        })
+      }
     }
+    
     showActivityModal.value = false
     await fetchActivities(1)
+    
+    if (import.meta.env.DEV) {
+      console.log('✅ Modal closed and activities refreshed')
+    }
   } catch (e: any) {
-    activityFormError.value = e.message || 'Failed to save activity.'
+    logError('Save Activity', e)
+    
+    // Enhanced error display for development
+    let errorMessage = e.message || 'Failed to save activity.'
+    
+    if (import.meta.env.DEV) {
+      console.error('💥 Save Activity Error Details:', {
+        error: e.message,
+        errorOrigin: e.errorOrigin,
+        debugInfo: e.debugInfo,
+        formData: activityForm.value,
+        response: e.response?.data,
+        status: e.response?.status,
+        statusText: e.response?.statusText,
+        timestamp: new Date().toISOString()
+      })
+      
+      if (e.response?.data?.debugInfo) {
+        errorMessage += `\n\nDevelopment Debug Info:\n${JSON.stringify(e.response.data.debugInfo, null, 2)}`
+      }
+    }
+    
+    activityFormError.value = formatErrorForDisplay(e)
   }
 }
 
 const router = useRouter()
+const route = useRoute()
+
+// Initialize filters from query parameters
+function getQueryString(val: unknown, fallback: string): string {
+  if (typeof val === 'string') return val
+  if (Array.isArray(val)) return val[0] || fallback
+  return fallback
+}
+
 function goToBulkEdit() {
   router.push({
     name: 'BulkEdit',
@@ -88,7 +181,9 @@ function goToBulkEdit() {
       search: searchQuery.value || undefined,
       sportType: selectedSportType.value !== 'all' ? selectedSportType.value : undefined,
       waterType: selectedWaterTypeFilter.value !== 'all' ? selectedWaterTypeFilter.value : undefined,
-      sort: sortBy.value || undefined
+      sort: sortBy.value || undefined,
+      startDate: startDateFilter.value || undefined,
+      endDate: endDateFilter.value || undefined
     }
   })
 }
@@ -106,10 +201,17 @@ const error = ref('')
 const isConnectedToStrava = ref(false)
 const stravaAuthUrl = ref('')
 const syncMessage = ref('')
-const searchQuery = ref('')
-const selectedSportType = ref('all')
-const sortBy = ref('-startDate')
-const selectedWaterTypeFilter = ref('all')
+const searchQuery = ref(getQueryString(route.query.search, ''))
+const selectedSportType = ref(getQueryString(route.query.sportType, 'all'))
+const sortBy = ref(getQueryString(route.query.sort, '-startDate'))
+const selectedWaterTypeFilter = ref(getQueryString(route.query.waterType, 'all'))
+const startDateFilter = ref(getQueryString(route.query.startDate, ''))
+const endDateFilter = ref(getQueryString(route.query.endDate, ''))
+
+// Watch for filter changes and auto-apply
+watch([searchQuery, selectedSportType, sortBy, selectedWaterTypeFilter, startDateFilter, endDateFilter], () => {
+  fetchActivities(1)
+}, { deep: true })
 
 onMounted(() => {
   checkAuthentication()
@@ -190,6 +292,21 @@ const fetchActivities = async (page = 1) => {
     isLoading.value = true
     error.value = ''
     
+    if (import.meta.env.DEV) {
+      console.log('🔍 Activities View - Fetching activities:', {
+        page: page,
+        filters: {
+          sort: sortBy.value,
+          sportType: selectedSportType.value,
+          search: searchQuery.value,
+          waterType: selectedWaterTypeFilter.value,
+          startDate: startDateFilter.value,
+          endDate: endDateFilter.value
+        },
+        timestamp: new Date().toISOString()
+      })
+    }
+    
     // Get activities from server database with pagination
     const response = await activityService.getActivities({
       page,
@@ -197,7 +314,9 @@ const fetchActivities = async (page = 1) => {
       sort: sortBy.value,
       sportType: selectedSportType.value !== 'all' ? selectedSportType.value : undefined,
       search: searchQuery.value.trim() || undefined,
-      waterType: selectedWaterTypeFilter.value !== 'all' ? selectedWaterTypeFilter.value : undefined
+      waterType: selectedWaterTypeFilter.value !== 'all' ? selectedWaterTypeFilter.value : undefined,
+      startDate: startDateFilter.value || undefined,
+      endDate: endDateFilter.value || undefined
     })
     
     if (response.success) {
@@ -210,10 +329,51 @@ const fetchActivities = async (page = 1) => {
         hasPrevPage: false,
         limit: 12
       }
+      
+      if (import.meta.env.DEV) {
+        console.log('✅ Activities View - Fetch successful:', {
+          activitiesCount: activities.value.length,
+          pagination: pagination.value,
+          timestamp: new Date().toISOString()
+        })
+      }
     }
     
   } catch (error: any) {
-    error.value = error.message || 'Failed to fetch activities.'
+    if (import.meta.env.DEV) {
+      console.error('💥 Activities View - Fetch failed:', {
+        page: page,
+        error: error.message,
+        errorOrigin: error.errorOrigin,
+        statusCode: error.statusCode,
+        retryAfter: error.retryAfter,
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    logError('Fetch Activities', error)
+    
+    // Enhanced error messages for specific scenarios
+    let errorMessage = error.message || 'Failed to fetch activities'
+    
+    // Special handling for rate limiting
+    if (error.statusCode === 429) {
+      errorMessage = `⚠️ ${error.message}`
+      if (import.meta.env.DEV) {
+        errorMessage += `\n\nDevelopment Info: Rate limit exceeded. Check server logs for details.`
+      }
+    }
+    // Special handling for network errors
+    else if (error.code === 'NETWORK_ERROR' || !error.response) {
+      errorMessage = 'Unable to connect to server. Please check your internet connection and try again.'
+    }
+    // Enhanced development error info
+    else if (import.meta.env.DEV && error.errorOrigin) {
+      errorMessage += `\n\nDevelopment Info:\nOrigin: ${error.errorOrigin}\nStatus: ${error.statusCode || 'Unknown'}`
+    }
+    
+    error.value = errorMessage
+    
     // Reset pagination on error
     pagination.value = {
       currentPage: 1,
@@ -243,12 +403,18 @@ const clearFilters = async () => {
   selectedSportType.value = 'all'
   sortBy.value = '-startDate'
   selectedWaterTypeFilter.value = 'all'
+  startDateFilter.value = ''
+  endDateFilter.value = ''
   await fetchActivities(1)
 }
 
 const sportTypes = computed(() => {
   const types = ['all', 'Kayaking', 'Canoeing', 'SUP', 'Stand Up Paddleboarding', 'Paddle']
   return types
+})
+
+const shouldShowDetailsForError = computed(() => {
+  return error.value ? shouldShowDetails({ message: error.value }) : false
 })
 
 const connectToStrava = () => {
@@ -284,7 +450,8 @@ const syncFromStrava = async (syncAll = false) => {
     }
     
   } catch (error: any) {
-    error.value = error.message || 'Failed to sync activities from Strava.'
+    logError('Strava Sync', error)
+    error.value = formatErrorForDisplay(error)
   } finally {
     isLoading.value = false
   }
@@ -308,7 +475,8 @@ const disconnectStrava = async () => {
     }, 3000)
     
   } catch (error: any) {
-    error.value = error.message || 'Failed to disconnect from Strava.'
+    logError('Strava Disconnect', error)
+    error.value = formatErrorForDisplay(error)
   }
 }
 
@@ -361,19 +529,6 @@ const formatSpeed = (metersPerSecond: number): string => {
     </div>
   </div>
   <div class="activities-container">
-    <header class="page-header">
-      <div class="header-content">
-        <h1>🛶 Paddle Partner Activities</h1>
-        <div class="header-actions">
-          <div class="paddle-partner-access">
-            <span class="access-indicator">🛶</span>
-            <span class="access-text">Paddle Partner Access</span>
-          </div>
-          <router-link to="/" class="back-link">← Back to Home</router-link>
-        </div>
-      </div>
-    </header>
-
     <main class="activities-main">
       <!-- Sync from Strava Button (styled like filters-section) -->
       <div class="filters-section" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
@@ -417,7 +572,14 @@ const formatSpeed = (metersPerSecond: number): string => {
 
       <!-- Error Message -->
       <div v-if="error" class="error-message">
-        ⚠️ {{ error }}
+        <div class="error-title">⚠️ Error Occurred</div>
+        <div class="error-content">{{ error.split('\\n')[0] }}</div>
+        <div v-if="shouldShowDetailsForError" class="error-details">
+          <details>
+            <summary>Development Details</summary>
+            <pre>{{ error }}</pre>
+          </details>
+        </div>
       </div>
 
       <!-- Success Message -->
@@ -459,6 +621,26 @@ const formatSpeed = (metersPerSecond: number): string => {
                 {{ type.name.charAt(0).toUpperCase() + type.name.slice(1) }}
               </option>
             </select>
+          </div>
+          
+          <div class="filter-group">
+            <label for="start-date">Start Date:</label>
+            <input 
+              id="start-date"
+              v-model="startDateFilter" 
+              type="date" 
+              class="date-input"
+            />
+          </div>
+          
+          <div class="filter-group">
+            <label for="end-date">End Date:</label>
+            <input 
+              id="end-date"
+              v-model="endDateFilter" 
+              type="date" 
+              class="date-input"
+            />
           </div>
           
           <div class="filter-group">
@@ -642,69 +824,7 @@ const formatSpeed = (metersPerSecond: number): string => {
 .activities-container {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.page-header {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  padding: 2rem;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.header-content h1 {
-  color: white;
-  margin: 0;
-  font-size: 2.5rem;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.paddle-partner-access {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.access-indicator {
-  font-size: 1rem;
-}
-
-.access-text {
-  white-space: nowrap;
-}
-
-.back-link {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-.back-link:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
+  padding-top: 2rem;
 }
 
 .activities-main {
@@ -863,6 +983,40 @@ const formatSpeed = (metersPerSecond: number): string => {
   margin-bottom: 2rem;
 }
 
+.error-title {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.error-content {
+  margin-bottom: 0.5rem;
+}
+
+.error-details {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #fc8181;
+}
+
+.error-details summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: #c53030;
+  margin-bottom: 0.5rem;
+}
+
+.error-details pre {
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 1rem;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #2d3748;
+  margin-top: 0.5rem;
+}
+
 .success-message {
   background: #f0fff4;
   color: #2f855a;
@@ -901,7 +1055,7 @@ const formatSpeed = (metersPerSecond: number): string => {
   color: #4a5568;
 }
 
-.search-input, .sport-select, .sort-select, .water-type-select {
+.search-input, .sport-select, .sort-select, .water-type-select, .date-input {
   padding: 0.5rem;
   border: 2px solid #e2e8f0;
   border-radius: 6px;
@@ -909,7 +1063,7 @@ const formatSpeed = (metersPerSecond: number): string => {
   transition: border-color 0.3s ease;
 }
 
-.search-input:focus, .sport-select:focus, .sort-select:focus, .water-type-select:focus {
+.search-input:focus, .sport-select:focus, .sort-select:focus, .water-type-select:focus, .date-input:focus {
   outline: none;
   border-color: #4299e1;
 }
@@ -1267,10 +1421,6 @@ const formatSpeed = (metersPerSecond: number): string => {
 
 /* Mobile portrait */
 @media (max-width: 480px) {
-  .page-header {
-    padding: 1rem 0.5rem;
-  }
-  
   .activities-main {
     padding: 0.5rem;
   }
@@ -1454,6 +1604,11 @@ const formatSpeed = (metersPerSecond: number): string => {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
+  color: #2c5282;
+}
+
+.activity-water-type span {
+  color: #2c5282;
 }
 
 .activity-water-type select {
@@ -1464,6 +1619,7 @@ const formatSpeed = (metersPerSecond: number): string => {
   transition: border-color 0.3s ease;
   background: white;
   cursor: pointer;
+  color: #2c5282;
 }
 
 .activity-water-type select:focus {
@@ -1484,6 +1640,7 @@ const formatSpeed = (metersPerSecond: number): string => {
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.2s ease;
+  color: #2c5282;
 }
 
 .activity-water-type button:hover:not(:disabled) {

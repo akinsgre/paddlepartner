@@ -5,27 +5,27 @@ import GoogleAuth from '../components/GoogleAuth.vue'
 
 <template>
   <div class="home-container">
-    <header class="header">
+    <section class="hero-section">
       <img 
         src="/tour-photo.jpg" 
         alt="Adventure tour photo from the collection" 
-        class="header-background-image"
+        class="hero-background-image"
       />
-      <div class="header-overlay"></div>
-      <div class="header-content">
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
         <div class="title-section">
-          <h1 class="main-title">Paddle Partner</h1>
-          <p class="tagline">Your Ultimate Paddle Sports Companion</p>
+          <h1 class="main-title">Your Ultimate Paddle Sports Companion</h1>
+          <p class="tagline">Track, analyze, and share your paddle sports journey</p>
           <div class="hero-subtitle">
             <h3>Your Paddle Adventure Awaits</h3>
-            <p>Track, analyze, and share your paddle sports journey</p>
+            <p>Connect with Strava, analyze your performance, and discover new waters</p>
           </div>
         </div>
         <div class="auth-container">
           <GoogleAuth />
         </div>
       </div>
-    </header>
+    </section>
     
     <main class="main-content">
       <HelloWorld msg="Track Your Paddle Adventures" />
@@ -39,14 +39,14 @@ import GoogleAuth from '../components/GoogleAuth.vue'
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.header {
+.hero-section {
   position: relative;
-  padding: 1rem;
-  overflow: visible;
+  padding: 2rem 1rem;
+  overflow: hidden;
   z-index: 50;
 }
 
-.header-background-image {
+.hero-background-image {
   position: absolute;
   top: 0;
   left: 0;
@@ -56,7 +56,7 @@ import GoogleAuth from '../components/GoogleAuth.vue'
   z-index: 0;
 }
 
-.header-overlay {
+.hero-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -66,7 +66,7 @@ import GoogleAuth from '../components/GoogleAuth.vue'
   z-index: 1;
 }
 
-.header-content {
+.hero-content {
   position: relative;
   display: flex;
   justify-content: space-between;
@@ -74,7 +74,7 @@ import GoogleAuth from '../components/GoogleAuth.vue'
   max-width: 1200px;
   margin: 0 auto;
   gap: 2rem;
-  min-height: 80px;
+  min-height: 400px;
   z-index: 51;
 }
 
@@ -137,8 +137,8 @@ import GoogleAuth from '../components/GoogleAuth.vue'
 
 /* Tablet styles */
 @media (min-width: 768px) {
-  .header {
-    padding: 2.5rem 2rem;
+  .hero-section {
+    padding: 3rem 2rem;
   }
   
   .main-content {
@@ -148,15 +148,15 @@ import GoogleAuth from '../components/GoogleAuth.vue'
 
 /* Mobile styles */
 @media (max-width: 767px) {
-  .header {
-    padding: 1rem;
+  .hero-section {
+    padding: 2rem 1rem;
   }
   
-  .header-content {
+  .hero-content {
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
-    min-height: auto;
+    gap: 1.5rem;
+    min-height: 300px;
   }
   
   .title-section {

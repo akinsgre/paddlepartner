@@ -3,7 +3,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/tests/setup-cjs.js'],
   testMatch: [
     '<rootDir>/tests/simple-smoke.test.js',
-    '<rootDir>/tests/working-integration.test.js'
+    '<rootDir>/tests/working-integration.test.js',
+    '<rootDir>/tests/coordinate-validation.test.js'
   ],
   testPathIgnorePatterns: [
     '<rootDir>/tests/integration.test.js',

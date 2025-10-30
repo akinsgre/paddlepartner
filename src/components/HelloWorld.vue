@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { authService } from '../services/authService'
 import { activityService } from '../services/activityService'
+import { useAuth } from '../composables/useAuth'
 
 defineProps<{ msg: string }>()
+
+// Use shared authentication state
+const { isAuthenticated } = useAuth()
 
 // Mock data for non-logged-in users
 const mockYearlyData = [
@@ -16,14 +20,13 @@ const mockYearlyData = [
 ]
 
 const yearlyData = ref(mockYearlyData)
-const isLoggedIn = ref(false)
 const isLoading = ref(false)
 const error = ref('')
 
 const totalDays = computed(() => yearlyData.value.reduce((sum, d) => sum + d.days, 0))
 
 const fetchYearlyData = async () => {
-  if (!isLoggedIn.value) {
+  if (!isAuthenticated.value) {
     yearlyData.value = mockYearlyData
     return
   }
@@ -31,6 +34,10 @@ const fetchYearlyData = async () => {
   try {
     isLoading.value = true
     error.value = ''
+    
+    if (import.meta.env.DEV) {
+      console.log('📊 HelloWorld - Fetching user activity data...')
+    }
     
     // Get all activities for the logged-in user
     const response = await activityService.getActivities({
@@ -66,6 +73,10 @@ const fetchYearlyData = async () => {
       }
       
       yearlyData.value = years
+      
+      if (import.meta.env.DEV) {
+        console.log('📊 HelloWorld - User data loaded:', years)
+      }
     } else {
       // Fall back to mock data if no activities
       yearlyData.value = mockYearlyData
@@ -80,11 +91,26 @@ const fetchYearlyData = async () => {
   }
 }
 
-onMounted(async () => {
-  // Check if user is logged in
-  isLoggedIn.value = authService.isAuthenticated()
+// Watch for authentication changes and refetch data
+watch(isAuthenticated, (newValue, oldValue) => {
+  if (import.meta.env.DEV) {
+    console.log('📊 HelloWorld - Auth state changed:', {
+      from: oldValue,
+      to: newValue,
+      timestamp: new Date().toISOString()
+    })
+  }
   
-  // Fetch appropriate data
+  if (newValue !== oldValue) {
+    if (import.meta.env.DEV) {
+      console.log('📊 HelloWorld - Triggering data refetch due to auth change')
+    }
+    fetchYearlyData()
+  }
+}, { immediate: false })
+
+onMounted(async () => {
+  // Fetch appropriate data based on current auth state
   await fetchYearlyData()
 })
 </script>
@@ -97,7 +123,12 @@ onMounted(async () => {
       <div class="stats-header">
         <h3>🏄‍♂️ Paddling Days Per Year</h3>
         <p class="total-counter">Total Days: {{ totalDays }}</p>
-        <p v-if="!isLoggedIn" class="data-source">📊 Sample Data - Sign in to see your stats</p>
+        <div v-if="isAuthenticated" class="analysis-link-container">
+          <router-link to="/analysis" class="analysis-link">
+            📊 View Detailed Analysis
+          </router-link>
+        </div>
+        <p v-if="!isAuthenticated" class="data-source">📊 Sample Data - Sign in to see your stats</p>
         <p v-else-if="!isLoading && !error" class="data-source">📈 Your Personal Data</p>
         <p v-if="error" class="error-message">⚠️ {{ error }}</p>
       </div>
@@ -125,7 +156,7 @@ onMounted(async () => {
       </div>
       
       <p v-if="!isLoading">
-        {{ isLoggedIn ? 'Your paddling activity as a percentage of total days per year' : 'Each bar shows paddling days as a percentage of the year (365 days)' }}
+        {{ isAuthenticated ? 'Your paddling activity as a percentage of total days per year' : 'Each bar shows paddling days as a percentage of the year (365 days)' }}
       </p>
     </div>
 
@@ -202,6 +233,29 @@ onMounted(async () => {
   font-weight: 600;
   font-size: clamp(0.9rem, 2.5vw, 1rem);
   margin: 0 0 0.5rem 0;
+}
+
+.analysis-link-container {
+  margin: 0.75rem 0 0.5rem 0;
+}
+
+.analysis-link {
+  background: linear-gradient(45deg, #3182ce, #2c5282);
+  color: white;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: inline-block;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.analysis-link:hover {
+  background: linear-gradient(45deg, #2c5282, #2a4365);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .data-source {

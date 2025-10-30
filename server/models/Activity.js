@@ -72,18 +72,34 @@ const activitySchema = new mongoose.Schema({
       type: [Number],
       validate: {
         validator: function(v) {
-          return !v || (v.length === 2 && v[0] >= -90 && v[0] <= 90 && v[1] >= -180 && v[1] <= 180)
+          // Allow null, undefined, or empty array (no GPS data)
+          if (!v || v.length === 0) return true
+          // If present, must be exactly 2 numbers with valid lat/lng ranges
+          return v.length === 2 && 
+                 typeof v[0] === 'number' && 
+                 typeof v[1] === 'number' &&
+                 v[0] >= -90 && v[0] <= 90 && 
+                 v[1] >= -180 && v[1] <= 180 &&
+                 !isNaN(v[0]) && !isNaN(v[1])
         },
-        message: 'Invalid coordinates format'
+        message: 'Invalid coordinates format - must be [latitude, longitude] or empty for activities without GPS'
       }
     },
     endLatLng: {
       type: [Number],
       validate: {
         validator: function(v) {
-          return !v || (v.length === 2 && v[0] >= -90 && v[0] <= 90 && v[1] >= -180 && v[1] <= 180)
+          // Allow null, undefined, or empty array (no GPS data)
+          if (!v || v.length === 0) return true
+          // If present, must be exactly 2 numbers with valid lat/lng ranges
+          return v.length === 2 && 
+                 typeof v[0] === 'number' && 
+                 typeof v[1] === 'number' &&
+                 v[0] >= -90 && v[0] <= 90 && 
+                 v[1] >= -180 && v[1] <= 180 &&
+                 !isNaN(v[0]) && !isNaN(v[1])
         },
-        message: 'Invalid coordinates format'
+        message: 'Invalid coordinates format - must be [latitude, longitude] or empty for activities without GPS'
       }
     },
     city: String,

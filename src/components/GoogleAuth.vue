@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { authService } from '../services/authService'
+import { useAuth } from '../composables/useAuth'
 
 interface GoogleUser {
   name: string
@@ -9,33 +10,28 @@ interface GoogleUser {
   googleId: string
 }
 
-const isAuthenticated = ref(false)
-const user = ref<GoogleUser | null>(null)
+const { isAuthenticated, user, login, logout: authLogout } = useAuth()
 const isLoading = ref(false)
 const errorMessage = ref('')
 const currentOrigin = ref('')
 const isMenuOpen = ref(false)
+
+// Debug authentication state changes
+if (import.meta.env.DEV) {
+  watch(isAuthenticated, (newVal, oldVal) => {
+    console.log('🔄 GoogleAuth - Auth state changed:', {
+      from: oldVal,
+      to: newVal,
+      user: user.value?.name || 'none'
+    })
+  })
+}
 
 // Google Client ID - Replace with your actual client ID from environment
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'your-google-client-id.apps.googleusercontent.com'
 
 onMounted(() => {
   currentOrigin.value = window.location.origin
-  
-  // Check for existing authentication
-  if (authService.isAuthenticated()) {
-    const storedUser = authService.getStoredUser()
-    if (storedUser) {
-      user.value = {
-        name: storedUser.name,
-        email: storedUser.email,
-        picture: storedUser.picture,
-        googleId: storedUser.googleId
-      }
-      isAuthenticated.value = true
-    }
-  }
-  
   loadGoogleScript()
 })
 
@@ -97,13 +93,22 @@ const handleCredentialResponse = async (response: any) => {
     const authResponse = await authService.authenticateWithGoogle(googleUser)
     
     if (authResponse.success) {
-      user.value = {
+      const userData = {
         name: authResponse.user.name,
         email: authResponse.user.email,
         picture: authResponse.user.picture || '',
         googleId: authResponse.user.googleId
       }
-      isAuthenticated.value = true
+      
+      console.log('🔐 GoogleAuth - Server auth success, updating shared state...')
+      console.log('🔐 GoogleAuth - User data:', userData)
+      console.log('🔐 GoogleAuth - Before login - isAuthenticated:', isAuthenticated.value)
+      
+      // Update shared authentication state
+      login(userData)
+      
+      console.log('🔐 GoogleAuth - After login - isAuthenticated:', isAuthenticated.value)
+      console.log('🔐 GoogleAuth - Login process completed successfully')
     } else {
       throw new Error('Server authentication failed')
     }
@@ -126,13 +131,8 @@ const signIn = () => {
   
   try {
     if (window.google && window.google.accounts) {
-      // Use the One Tap prompt or render button directly
-      window.google.accounts.id.prompt((notification: any) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          // If prompt doesn't show, render the button inline
-          renderInlineButton()
-        }
-      })
+      // Skip One Tap and go directly to popup for better UX
+      renderInlineButton()
     } else {
       throw new Error('Google Sign-In not initialized')
     }
@@ -145,6 +145,10 @@ const renderInlineButton = () => {
   // Create a temporary container for the Google button
   const tempContainer = document.createElement('div')
   tempContainer.id = 'temp-google-button'
+  tempContainer.style.position = 'fixed'
+  tempContainer.style.top = '-1000px'
+  tempContainer.style.left = '-1000px'
+  document.body.appendChild(tempContainer)
   
   if (window.google && window.google.accounts) {
     window.google.accounts.id.renderButton(tempContainer, {
@@ -155,33 +159,98 @@ const renderInlineButton = () => {
       shape: 'rectangular'
     })
     
-    // Trigger click on the rendered button
+    // Trigger click on the rendered button immediately
     setTimeout(() => {
       const googleBtn = tempContainer.querySelector('div[role="button"]') as HTMLElement
       if (googleBtn) {
         googleBtn.click()
+        // Clean up the temporary container
+        setTimeout(() => {
+          if (document.body.contains(tempContainer)) {
+            document.body.removeChild(tempContainer)
+          }
+        }, 100)
       }
-    }, 100)
+    }, 50)
   }
 }
 
 const signOut = async () => {
+  isLoading.value = true
+  
   try {
-    if (window.google) {
+    console.log('🚪 GoogleAuth - Starting logout process...')
+    
+    // Clear Google's authentication state first
+    if (window.google && window.google.accounts) {
       window.google.accounts.id.disableAutoSelect()
+      
+      // Additional Google sign-out if available
+      if (window.google.accounts.oauth2) {
+        try {
+          await window.google.accounts.oauth2.revoke(localStorage.getItem('authToken') || '')
+        } catch (error) {
+          // Ignore revoke errors as the token might already be invalid
+          console.warn('Google token revoke failed:', error)
+        }
+      }
     }
     
     // Logout from server
     await authService.logout()
     
+    console.log('🚪 GoogleAuth - Server logout completed')
+    
+    // Update shared authentication state
+    authLogout()
+    
+    console.log('🚪 GoogleAuth - Shared state cleared')
+    
   } catch (error) {
-    console.error('Logout error:', error)
+    console.error('💥 GoogleAuth - Logout error:', error)
+    // Continue with logout even if server call fails
+    authLogout()
   } finally {
-    // Clear local state
-    isAuthenticated.value = false
-    user.value = null
+    // Clear local component state
     errorMessage.value = ''
+    isLoading.value = false
+    isMenuOpen.value = false
+    
+    // Small delay to ensure state propagation, then redirect
+    setTimeout(() => {
+      if (window.location.pathname !== '/') {
+        console.log('🔄 GoogleAuth - Redirecting to home after logout')
+        window.location.href = '/'
+      }
+    }, 100)
+    
+    console.log('✅ GoogleAuth - Logout process completed')
   }
+}
+
+const handleImageError = (event: Event) => {
+  console.error('Profile image failed to load')
+}
+
+const handleImageLoad = (event: Event) => {
+  // Image loaded successfully
+}
+
+// Helper function to process Google image URLs
+const processGoogleImageUrl = (url: string | undefined): string => {
+  if (!url) return ''
+  
+  // Google images sometimes work better with specific parameters
+  if (url.includes('googleusercontent.com')) {
+    // Try to ensure the URL has proper size parameter
+    if (!url.includes('=s')) {
+      return url + '=s96-c'
+    }
+    // Replace size parameter if it exists but might be causing issues
+    return url.replace(/=s\d+-c/, '=s96-c')
+  }
+  
+  return url
 }
 
 const toggleMenu = () => {
@@ -222,7 +291,16 @@ const closeMenu = () => {
 
     <div v-else class="user-profile">
       <div class="profile-header">
-        <img :src="user?.picture" :alt="user?.name" class="profile-image" />
+        <img 
+          :src="processGoogleImageUrl(user?.picture) || '/default-avatar.png'" 
+          :alt="user?.name" 
+          class="profile-image"
+          @error="handleImageError"
+          @load="handleImageLoad"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"
+          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMzAiIGZpbGw9IiM0Mjk5ZTEiLz4KPHN2ZyB4PSIxNSIgeT0iMTAiIHdpZHRoPSIzMCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJ3aGl0ZSI+CjxwYXRoIGQ9Ik0xMiAyQzEzLjEgMiAxNCAyLjkgMTQgNEMxNCA1LjEgMTMuMSA2IDEyIDZDMTAuOSA2IDEwIDUuMSAxMCA0QzEwIDIuOSAxMC45IDIgMTIgMlpNMjEgOVYyMkMyMSAyMi41IDIwLjUgMjMgMjAgMjNIVkM0LjUgMjMgNCAyMi41IDQgMjJWOUM0IDguNSA0LjUgOCA1IDhIMTlDMTkuNSA4IDIwIDguNSAyMCA5Wk0xOC4xIDIwQzE2LjggMTguNyAxNC4xIDE4LjIgMTIgMTguMkM5LjkgMTguMiA7LjIgMTguNyA1LjkgMjBIMTguMVoiLz4KPC9zdmc+Cjwvc3ZnPg=='"
+        />
         <div class="profile-info">
           <h3>Welcome, {{ user?.name }}! 🎉</h3>
           <p class="email">{{ user?.email }}</p>

@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import type { Ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { activityService, type Activity } from '../services/activityService'
 import { getWaterTypes, type WaterType } from '../services/waterTypeService'
 
-const router = useRouter()
 const route = useRoute()
 
 const activities = ref<Activity[]>([])
@@ -25,6 +24,8 @@ const searchQuery = ref(getQueryString(route.query.search, ''))
 const selectedSportType = ref(getQueryString(route.query.sportType, 'all'))
 const selectedWaterTypeFilter = ref(getQueryString(route.query.waterType, 'all'))
 const sortBy = ref(getQueryString(route.query.sort, '-startDate'))
+const startDateFilter = ref(getQueryString(route.query.startDate, ''))
+const endDateFilter = ref(getQueryString(route.query.endDate, ''))
 
 onMounted(async () => {
   await fetchWaterTypes()
@@ -54,7 +55,9 @@ async function fetchActivities() {
       sort: sortBy.value,
       sportType: selectedSportType.value !== 'all' ? selectedSportType.value : undefined,
       waterType: selectedWaterTypeFilter.value !== 'all' ? selectedWaterTypeFilter.value : undefined,
-      search: searchQuery.value ? String(searchQuery.value) : undefined
+      search: searchQuery.value ? String(searchQuery.value) : undefined,
+      startDate: startDateFilter.value || undefined,
+      endDate: endDateFilter.value || undefined
     })
     if (response.success) {
       activities.value = response.activities || []
@@ -83,10 +86,6 @@ async function applyBulkWaterType() {
   }
 }
 
-function goBack() {
-  router.push({ name: 'Activities' })
-}
-
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -98,12 +97,10 @@ function formatDate(dateString: string): string {
 
 <template>
   <div class="bulk-edit-container">
-    <header class="bulk-edit-header">
+    <div class="bulk-edit-main">
       <h1>Bulk Edit Activities</h1>
-      <button @click="goBack" class="back-btn">← Back to Activities</button>
-    </header>
-    <div v-if="error" class="error-message">⚠️ {{ error }}</div>
-    <div v-if="isLoading" class="loading">Loading activities...</div>
+      <div v-if="error" class="error-message">⚠️ {{ error }}</div>
+      <div v-if="isLoading" class="loading">Loading activities...</div>
     <div v-else>
       <div class="bulk-edit-bar">
         <label for="bulk-water-type"><strong>Bulk set water type for all results:</strong></label>
@@ -116,20 +113,7 @@ function formatDate(dateString: string): string {
         <button @click="applyBulkWaterType" :disabled="!selectedWaterType || bulkLoading" class="apply-btn">Apply to All</button>
         <span v-if="bulkLoading" class="inline-loading">⏳</span>
       </div>
-/* Add style for apply-btn to match Activities page */
-.apply-btn {
-  background: #4299e1;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.apply-btn:hover {
-  background: #3182ce;
-}
+
       <table class="activities-table">
         <thead>
           <tr>
@@ -152,6 +136,7 @@ function formatDate(dateString: string): string {
       </table>
       <div v-if="activities.length === 0" class="no-activities">No activities found for current filters.</div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -159,42 +144,20 @@ function formatDate(dateString: string): string {
 .bulk-edit-container {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding-top: 2rem;
+}
+
+.bulk-edit-main {
   padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.bulk-edit-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  padding: 1.5rem 2rem;
-  border-radius: 15px;
-}
-
-.bulk-edit-header h1 {
+.bulk-edit-main h1 {
   color: white;
-  margin: 0;
+  margin: 0 0 2rem 0;
   font-size: 2rem;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.back-btn {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  text-decoration: none;
-}
-
-.back-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .bulk-edit-bar {
@@ -264,6 +227,7 @@ function formatDate(dateString: string): string {
   padding: 1rem;
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
+  color: #2c5282;
 }
 
 .activities-table th {
@@ -318,6 +282,22 @@ function formatDate(dateString: string): string {
   text-align: center;
   color: #2c5282;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Apply button styles */
+.apply-btn {
+  background: #4299e1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.apply-btn:hover {
+  background: #3182ce;
 }
 
 @media (max-width: 768px) {
